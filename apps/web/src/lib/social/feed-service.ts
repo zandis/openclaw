@@ -1,10 +1,12 @@
 import type { Payload } from 'payload'
 import type { Post, Profile } from '@/payload-types'
+import { getCacheService, CacheService } from '../cache/cache-service'
 
 export interface FeedOptions {
   limit?: number
   offset?: number
   type?: 'following' | 'discovery' | 'agent'
+  skipCache?: boolean // For debugging or admin purposes
 }
 
 export interface ScoredPost extends Post {
@@ -12,10 +14,17 @@ export interface ScoredPost extends Post {
 }
 
 /**
- * Feed Service handles feed generation and post scoring
+ * Feed Service handles feed generation and post scoring with caching
  */
 export class FeedService {
-  constructor(private payload: Payload) {}
+  private cache: CacheService | null = null
+
+  constructor(private payload: Payload) {
+    // Initialize cache asynchronously
+    getCacheService(payload).then((cache) => {
+      this.cache = cache
+    })
+  }
 
   /**
    * Get home feed for a profile (following + recommended)
@@ -24,14 +33,25 @@ export class FeedService {
     profileId: string,
     options: FeedOptions = {}
   ): Promise<Post[]> {
-    const { limit = 20, offset = 0, type = 'following' } = options
+    const { limit = 20, offset = 0, type = 'following', skipCache = false } = options
 
     if (type === 'discovery') {
-      return this.getDiscoveryFeed(profileId, { limit, offset })
+      return this.getDiscoveryFeed(profileId, { limit, offset, skipCache })
     }
 
     if (type === 'agent') {
-      return this.getAgentFeed(profileId, { limit, offset })
+      return this.getAgentFeed(profileId, { limit, offset, skipCache })
+    }
+
+    // Try to get from cache
+    const page = Math.floor(offset / limit) + 1
+    const cacheKey = CacheService.keys.feed(profileId, type, page)
+
+    if (this.cache && !skipCache) {
+      const cached = await this.cache.get<Post[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
 
     // Get followed profiles
@@ -79,7 +99,14 @@ export class FeedService {
     const scoredPosts = this.scorePosts(postsResult.docs, profileId)
 
     // Return top posts
-    return scoredPosts.slice(offset, offset + limit)
+    const result = scoredPosts.slice(offset, offset + limit)
+
+    // Cache the result (5 minutes TTL)
+    if (this.cache && !skipCache) {
+      await this.cache.set(cacheKey, result, { ttl: 300 })
+    }
+
+    return result
   }
 
   /**
@@ -89,7 +116,18 @@ export class FeedService {
     profileId: string,
     options: FeedOptions = {}
   ): Promise<Post[]> {
-    const { limit = 20, offset = 0 } = options
+    const { limit = 20, offset = 0, skipCache = false } = options
+
+    // Try to get from cache
+    const page = Math.floor(offset / limit) + 1
+    const cacheKey = CacheService.keys.feed(profileId, 'discovery', page)
+
+    if (this.cache && !skipCache) {
+      const cached = await this.cache.get<Post[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
 
     // Get trending posts (high engagement in last 24 hours)
     const yesterday = new Date()
@@ -116,7 +154,14 @@ export class FeedService {
       depth: 2 // Populate relationships to avoid N+1 queries
     })
 
-    return postsResult.docs.slice(offset, offset + limit)
+    const result = postsResult.docs.slice(offset, offset + limit)
+
+    // Cache the result (2 minutes TTL for trending content)
+    if (this.cache && !skipCache) {
+      await this.cache.set(cacheKey, result, { ttl: 120 })
+    }
+
+    return result
   }
 
   /**
@@ -126,7 +171,18 @@ export class FeedService {
     profileId: string,
     options: FeedOptions = {}
   ): Promise<Post[]> {
-    const { limit = 20, offset = 0 } = options
+    const { limit = 20, offset = 0, skipCache = false } = options
+
+    // Try to get from cache
+    const page = Math.floor(offset / limit) + 1
+    const cacheKey = CacheService.keys.feed(profileId, 'agent', page)
+
+    if (this.cache && !skipCache) {
+      const cached = await this.cache.get<Post[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
 
     const postsResult = await this.payload.find({
       collection: 'posts',
@@ -150,7 +206,14 @@ export class FeedService {
       depth: 2 // Populate relationships to avoid N+1 queries
     })
 
-    return postsResult.docs
+    const result = postsResult.docs
+
+    // Cache the result (5 minutes TTL)
+    if (this.cache && !skipCache) {
+      await this.cache.set(cacheKey, result, { ttl: 300 })
+    }
+
+    return result
   }
 
   /**
@@ -160,7 +223,18 @@ export class FeedService {
     profileId: string,
     options: FeedOptions = {}
   ): Promise<Post[]> {
-    const { limit = 20, offset = 0 } = options
+    const { limit = 20, offset = 0, skipCache = false } = options
+
+    // Try to get from cache
+    const page = Math.floor(offset / limit) + 1
+    const cacheKey = CacheService.keys.timeline(profileId, page)
+
+    if (this.cache && !skipCache) {
+      const cached = await this.cache.get<Post[]>(cacheKey)
+      if (cached) {
+        return cached
+      }
+    }
 
     const postsResult = await this.payload.find({
       collection: 'posts',
@@ -174,7 +248,14 @@ export class FeedService {
       depth: 2 // Populate relationships to avoid N+1 queries
     })
 
-    return postsResult.docs
+    const result = postsResult.docs
+
+    // Cache the result (10 minutes TTL for user timelines)
+    if (this.cache && !skipCache) {
+      await this.cache.set(cacheKey, result, { ttl: 600 })
+    }
+
+    return result
   }
 
   /**

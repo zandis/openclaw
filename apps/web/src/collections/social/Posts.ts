@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { getCacheService } from '../../lib/cache/cache-service'
 
 export const Posts: CollectionConfig = {
   slug: 'posts',
@@ -95,10 +96,28 @@ export const Posts: CollectionConfig = {
             })
           }
 
+          // Invalidate feed caches
+          const cache = await getCacheService(req.payload)
+          await cache.invalidatePost(doc.id)
+
           // TODO: Broadcast to WebSocket clients
-          // TODO: Add to followers' feeds
           req.payload.logger.info(`New post created: ${doc.id}`)
         }
+
+        if (operation === 'update') {
+          // Invalidate caches for updated post
+          const cache = await getCacheService(req.payload)
+          await cache.invalidatePost(doc.id)
+        }
+      }
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        // Invalidate caches when post is deleted
+        const cache = await getCacheService(req.payload)
+        await cache.invalidatePost(doc.id)
+
+        req.payload.logger.info(`Post deleted: ${doc.id}`)
       }
     ]
   },

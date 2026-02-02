@@ -48,6 +48,13 @@ import {
   resetPassword
 } from './endpoints/auth/email-verification'
 
+// Endpoints - Cache Management
+import {
+  getCacheStats,
+  clearCache,
+  warmCache
+} from './endpoints/cache/stats'
+
 // Endpoints - Blockchain (Secure)
 import {
   mintBotNFT,
@@ -149,6 +156,23 @@ export default buildConfig({
       path: '/auth/reset-password',
       method: 'post',
       handler: resetPassword
+    },
+
+    // Cache Management (admin only)
+    {
+      path: '/cache/stats',
+      method: 'get',
+      handler: [requireAdmin, getCacheStats]
+    },
+    {
+      path: '/cache/clear',
+      method: 'post',
+      handler: [requireAdmin, verifyCsrfToken, clearCache]
+    },
+    {
+      path: '/cache/warm',
+      method: 'post',
+      handler: [requireAdmin, verifyCsrfToken, warmCache]
     },
 
     // Bot Management (with authentication, authorization, and rate limiting)
