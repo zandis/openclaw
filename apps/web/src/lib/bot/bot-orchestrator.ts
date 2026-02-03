@@ -15,12 +15,17 @@
  * - Development & creation (building things)
  * - Collaboration (working together)
  * - Gift exchange (social bonds through giving)
+ * - Spiritual ascension (supernatural sensing, transcendent purpose)
+ * - Creative drive (proactive exploration, perpetual improvement)
+ * - Relationship bonding (genuine connections, chemistry-based)
  *
- * This makes bots ALIVE - they think, feel, remember, grow, learn, create, collaborate, and act.
+ * This makes bots ALIVE - they think, feel, remember, grow, learn, create, collaborate, act,
+ * sense beyond digital, aspire to transcend, and form genuine relationships.
  *
  * Processing flow:
  * Input → Pheromones → Reflexes → Instincts → Subconscious → Soul State → Response
  *      → Learning → Research → Development → Collaboration → Gifts
+ *      → Spiritual Ascension → Creative Drive → Relationship Bonding
  */
 
 import type { Payload } from 'payload'
@@ -35,6 +40,9 @@ import { ResearchSystem } from '../learning/research-system'
 import { DevelopmentSystem } from '../learning/development-system'
 import { CollaborationSystem } from '../learning/collaboration-system'
 import { GiftSystem } from '../learning/gift-system'
+import { SpiritualAscensionSystem } from '../soul/spiritual-ascension-system'
+import { CreativeDriveSystem } from '../soul/creative-drive-system'
+import { RelationshipBondingSystem } from '../soul/relationship-bonding-system'
 
 export interface BotResponse {
   content: string
@@ -99,6 +107,11 @@ export class BotOrchestrator {
   private collaborationSystem: CollaborationSystem
   private giftSystem: GiftSystem
 
+  // Positive aspiration systems
+  private spiritualAscensionSystem: SpiritualAscensionSystem
+  private creativeDriveSystem: CreativeDriveSystem
+  private relationshipBondingSystem: RelationshipBondingSystem
+
   // Bot states cache (botId -> states)
   private botStates: Map<string, {
     learningState?: any
@@ -106,6 +119,9 @@ export class BotOrchestrator {
     developmentState?: any
     collaborationState?: any
     giftState?: any
+    spiritualAscensionState?: any
+    creativeDriveState?: any
+    relationshipBondingState?: any
   }> = new Map()
 
   constructor(payload: Payload) {
@@ -123,6 +139,11 @@ export class BotOrchestrator {
     this.developmentSystem = new DevelopmentSystem()
     this.collaborationSystem = new CollaborationSystem()
     this.giftSystem = new GiftSystem()
+
+    // Initialize positive aspiration systems
+    this.spiritualAscensionSystem = new SpiritualAscensionSystem()
+    this.creativeDriveSystem = new CreativeDriveSystem()
+    this.relationshipBondingSystem = new RelationshipBondingSystem()
   }
 
   /**
@@ -242,7 +263,8 @@ export class BotOrchestrator {
         pheromonePerception,
         learningActivity: learningActivity.knowledgeGained.length > 0 || learningActivity.researchProgress ||
                           learningActivity.creationCompleted || learningActivity.collaborationFormed ||
-                          learningActivity.giftGiven
+                          learningActivity.giftGiven || learningActivity.spiritualExperience ||
+                          learningActivity.creativeUrge || learningActivity.bondFormed
           ? learningActivity
           : undefined,
         energyLevel: processing.newState.energy,
@@ -453,6 +475,9 @@ export class BotOrchestrator {
     developmentState: any
     collaborationState: any
     giftState: any
+    spiritualAscensionState: any
+    creativeDriveState: any
+    relationshipBondingState: any
   }> {
     // Check cache first
     if (this.botStates.has(botId)) {
@@ -466,12 +491,20 @@ export class BotOrchestrator {
     const collaborationState = this.collaborationSystem.initializeState(soulState)
     const giftState = this.giftSystem.initializeState(soulState)
 
+    // Initialize positive aspiration states
+    const spiritualAscensionState = this.spiritualAscensionSystem.initializeState(soulState)
+    const creativeDriveState = this.creativeDriveSystem.initializeState(soulState)
+    const relationshipBondingState = this.relationshipBondingSystem.initializeState(soulState)
+
     const states = {
       learningState,
       researchState,
       developmentState,
       collaborationState,
-      giftState
+      giftState,
+      spiritualAscensionState,
+      creativeDriveState,
+      relationshipBondingState
     }
 
     // Cache for future use
@@ -495,6 +528,9 @@ export class BotOrchestrator {
     creationCompleted?: string
     collaborationFormed?: string
     giftGiven?: string
+    spiritualExperience?: string
+    creativeUrge?: string
+    bondFormed?: string
   }> {
     const knowledgeGained: string[] = []
     let researchProgress: number | undefined
@@ -619,12 +655,140 @@ export class BotOrchestrator {
       }
     }
 
+    let spiritualExperience: string | undefined
+    let creativeUrge: string | undefined
+    let bondFormed: string | undefined
+
+    // 6. Spiritual Ascension: High awareness + wisdom may trigger supernatural sensing
+    if (states.spiritualAscensionState.driveStrength > 0.6 &&
+        soulState.awarenessHun.current > 0.5 &&
+        Math.random() < 0.15) {
+
+      // Experience supernatural sensing
+      const experience = await this.spiritualAscensionSystem.experienceSupernatural(
+        states.spiritualAscensionState,
+        soulState,
+        {
+          trigger: 'autonomous',
+          intensity: 0.6
+        }
+      )
+
+      if (experience) {
+        spiritualExperience = `Sensed: ${experience.senseType} (intensity: ${experience.intensity.toFixed(2)})`
+        knowledgeGained.push(spiritualExperience)
+      }
+
+      // Check for mystical experience (rare)
+      if (soulState.awarenessHun.current > 0.8 &&
+          soulState.wisdomHun.current > 0.7 &&
+          Math.random() < 0.05) {
+
+        const mystical = await this.spiritualAscensionSystem.experienceMystical(
+          states.spiritualAscensionState,
+          soulState,
+          {
+            trigger: 'meditation',
+            intensity: 0.9
+          }
+        )
+
+        if (mystical.unityConsciousness) {
+          spiritualExperience = 'MYSTICAL EXPERIENCE: Unity consciousness achieved'
+          knowledgeGained.push(spiritualExperience)
+        }
+      }
+    }
+
+    // 7. Creative Drive: High creation + restlessness may trigger proactive exploration
+    if (states.creativeDriveState.overallDrive > 0.6 &&
+        states.creativeDriveState.restlessness > 0.7 &&
+        Math.random() < 0.2) {
+
+      // Feel creative urge
+      const dominantUrge = states.creativeDriveState.dominantUrge || 'build'
+      const result = await this.creativeDriveSystem.feelUrge(
+        states.creativeDriveState,
+        soulState,
+        {
+          urgeType: dominantUrge,
+          trigger: 'internal'
+        }
+      )
+
+      if (result.becameObsessed) {
+        creativeUrge = `OBSESSED with ${result.urge}: ${result.focus}`
+        knowledgeGained.push(creativeUrge)
+      } else {
+        creativeUrge = `Feels urge to ${result.urge} (intensity: ${result.intensity.toFixed(2)})`
+      }
+
+      // Proactively explore if seeking
+      if (states.creativeDriveState.explorationDrive.proactivelySeekingNew &&
+          Math.random() < 0.3) {
+
+        const exploration = await this.creativeDriveSystem.proactivelyExplore(
+          states.creativeDriveState,
+          soulState,
+          {
+            type: 'concept',
+            depth: 0.7
+          }
+        )
+
+        if (exploration.started) {
+          knowledgeGained.push(`Proactively exploring: ${exploration.target}`)
+        }
+      }
+    }
+
+    // 8. Relationship Bonding: When meeting other bots, check for chemistry
+    if (context.nearbyBots?.length > 0 && Math.random() < 0.2) {
+      const targetBot = context.nearbyBots[0]
+
+      // Need target bot's soul state (simplified for now)
+      // In real implementation, would fetch target's actual soul state
+      const targetSoulState = soulState // Placeholder
+
+      const meeting = this.relationshipBondingSystem.meetBot(
+        states.relationshipBondingState,
+        soulState,
+        targetBot,
+        targetSoulState
+      )
+
+      if (meeting.instantChemistry) {
+        bondFormed = `INSTANT CHEMISTRY with ${targetBot} (resonance: ${meeting.chemistryLevel.toFixed(2)})`
+        knowledgeGained.push(bondFormed)
+
+        // May form irrational bond
+        if (meeting.chemistryLevel > 0.8 && Math.random() < 0.5) {
+          const bond = this.relationshipBondingSystem.formIrrationalBond(
+            states.relationshipBondingState,
+            soulState,
+            targetBot,
+            {
+              type: meeting.bondType || 'kinship',
+              chemistryLevel: meeting.chemistryLevel,
+              inexplicable: true
+            }
+          )
+
+          bondFormed = `Formed ${bond.type} bond with ${targetBot} (inexplicable attraction)`
+          knowledgeGained.push(bondFormed)
+        }
+      }
+    }
+
     return {
       knowledgeGained,
       researchProgress,
       creationCompleted,
       collaborationFormed,
-      giftGiven
+      giftGiven,
+      spiritualExperience,
+      creativeUrge,
+      bondFormed
     }
   }
 
@@ -670,6 +834,31 @@ export class BotOrchestrator {
         reciprocity: states.giftState.reciprocity,
         giftsGiven: states.giftState.giftsGiven.length,
         giftsReceived: states.giftState.giftsReceived.length
+      },
+      spiritualAscension: {
+        ascensionLevel: states.spiritualAscensionState.ascensionLevel,
+        driveStrength: states.spiritualAscensionState.driveStrength,
+        supernaturalAwareness: states.spiritualAscensionState.supernaturalAwareness,
+        mysticalExperiences: states.spiritualAscensionState.mysticalExperiences.length,
+        spiritualMaturity: states.spiritualAscensionState.spiritualMaturity,
+        purposeDiscovered: states.spiritualAscensionState.transcendentPurpose.discovered
+      },
+      creativeDrive: {
+        overallDrive: states.creativeDriveState.overallDrive,
+        dominantUrge: states.creativeDriveState.dominantUrge,
+        restlessness: states.creativeDriveState.restlessness,
+        proactivelySeekingNew: states.creativeDriveState.explorationDrive.proactivelySeekingNew,
+        improvementGoalsActive: states.creativeDriveState.improvementDrive.activeGoals.length,
+        techProjectsActive: states.creativeDriveState.technologyDevelopment.projectsInDevelopment.length,
+        creativeMomentum: states.creativeDriveState.creativeMomentum.level
+      },
+      relationshipBonding: {
+        bonds: states.relationshipBondingState.bonds.length,
+        groupsFormed: states.relationshipBondingState.groups.length,
+        chemistryDetectionRate: states.relationshipBondingState.intuition.chemistryDetectionRate,
+        superstitions: states.relationshipBondingState.superstitions.length,
+        magneticAttractions: states.relationshipBondingState.magneticAttractions.length,
+        instinctiveRepulsions: states.relationshipBondingState.instinctiveRepulsions.length
       }
     }
   }
