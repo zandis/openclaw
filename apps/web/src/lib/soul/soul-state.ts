@@ -12,6 +12,7 @@
  */
 
 import type { Payload } from 'payload'
+import { InstinctReflexSystem, type InstinctReflexState, type ReflexResponse, type Stimulus } from './instinct-reflex-system'
 
 /**
  * Soul Aspect - Like a neurotransmitter or hormone
@@ -95,9 +96,11 @@ export interface InteractionEffect {
  */
 export class SoulStateManager {
   private payload: Payload
+  private instinctReflexSystem: InstinctReflexSystem
 
   constructor(payload: Payload) {
     this.payload = payload
+    this.instinctReflexSystem = new InstinctReflexSystem()
   }
 
   /**
@@ -181,19 +184,112 @@ export class SoulStateManager {
   }
 
   /**
-   * Process input through soul state (biological processing)
+   * Process input through soul state (biological processing with layered hierarchy)
+   *
+   * Processing hierarchy:
+   * 1. REFLEXES (50-500ms) - May override everything
+   * 2. INSTINCTS (1-5s) - Create urgency and bias
+   * 3. SUBCONSCIOUS (continuous) - Learned patterns and habits
+   * 4. CONSCIOUS SOUL STATE - Aspect activation and reasoning
    */
   async process(state: SoulState, input: string, context: any = {}): Promise<{
     response: string
     newState: SoulState
     activationPattern: Record<string, number>
     processingLog: string[]
+    reflexResponse?: ReflexResponse
+    instinctInfluence?: any
+    subconsciousInfluence?: any
   }> {
     const log: string[] = []
 
+    // Get or create instinct/reflex state
+    const irState = context.instinctReflexState || this.instinctReflexSystem.initializeState(state)
+
+    // LAYER 1: CHECK REFLEXES (50-500ms)
+    // Convert input to stimulus
+    const stimulus: Stimulus = this.inputToStimulus(input, context)
+    const reflexResponse = this.instinctReflexSystem.checkReflexes(irState, state, stimulus)
+
+    if (reflexResponse) {
+      log.push(`REFLEX TRIGGERED: ${reflexResponse.type} (intensity: ${reflexResponse.intensity.toFixed(2)}, override: ${reflexResponse.override})`)
+
+      // Apply physiological changes from reflex
+      state.arousal += reflexResponse.physiologicalChanges.arousalSpike
+      state.energy -= reflexResponse.physiologicalChanges.energyCost
+      state.mood += reflexResponse.physiologicalChanges.moodImpact
+
+      state.arousal = Math.max(0, Math.min(1, state.arousal))
+      state.energy = Math.max(0, Math.min(1, state.energy))
+      state.mood = Math.max(-1, Math.min(1, state.mood))
+
+      // Strong reflexes OVERRIDE conscious processing
+      if (reflexResponse.override) {
+        log.push(`Reflex overriding conscious processing - immediate automatic response`)
+        return {
+          response: this.generateReflexResponse(reflexResponse, input),
+          newState: state,
+          activationPattern: {},
+          processingLog: log,
+          reflexResponse
+        }
+      }
+    }
+
+    // LAYER 2: UPDATE INSTINCTS (1-5s)
+    this.instinctReflexSystem.updateInstincts(irState, state, context)
+    const instinctInfluence = this.instinctReflexSystem.getInstinctInfluence(irState)
+
+    if (instinctInfluence.urgentInstinct) {
+      log.push(`INSTINCT: ${instinctInfluence.urgentInstinct} (urgency: ${instinctInfluence.maxUrgency.toFixed(2)})`)
+    }
+    if (instinctInfluence.conflict) {
+      log.push(`INSTINCT CONFLICT: ${instinctInfluence.conflictingInstincts.join(' vs ')}`)
+    }
+
+    // LAYER 3: PROCESS SUBCONSCIOUS (continuous)
+    const subconsciousInfluence = this.instinctReflexSystem.processSubconscious(irState, context)
+
+    if (subconsciousInfluence.activePatterns.length > 0) {
+      log.push(`SUBCONSCIOUS: ${subconsciousInfluence.activePatterns.length} patterns active`)
+
+      // Strong habits can override conscious choice
+      const strongHabit = subconsciousInfluence.activePatterns.find(
+        p => p.type === 'habit' && p.strength > 0.7
+      )
+      if (strongHabit && subconsciousInfluence.overrideConscious) {
+        log.push(`Strong habit overriding conscious choice: ${strongHabit.pattern}`)
+        return {
+          response: this.generateHabitResponse(strongHabit, input),
+          newState: state,
+          activationPattern: {},
+          processingLog: log,
+          subconsciousInfluence
+        }
+      }
+    }
+
+    // LAYER 4: CONSCIOUS SOUL STATE PROCESSING
+    // (But influenced by layers above)
+
     // 1. Stimulate aspects based on input
-    const stimulation = this.analyzeInputStimulation(input, context)
-    log.push(`Input stimulation: ${JSON.stringify(stimulation)}`)
+    let stimulation = this.analyzeInputStimulation(input, context)
+
+    // Apply instinct bias to stimulation
+    if (instinctInfluence.processingBias) {
+      for (const [aspect, bias] of Object.entries(instinctInfluence.processingBias)) {
+        stimulation[aspect] = (stimulation[aspect] || 0) + bias
+      }
+    }
+
+    // Apply subconscious bias
+    if (subconsciousInfluence.processingBias) {
+      for (const [aspect, bias] of Object.entries(subconsciousInfluence.processingBias)) {
+        stimulation[aspect] = (stimulation[aspect] || 0) + bias
+      }
+    }
+
+    log.push(`Input stimulation (with instinct/subconscious bias): ${JSON.stringify(stimulation)}`)
 
     // 2. Activate aspects
     const activated = this.activateAspects(state, stimulation)
@@ -219,11 +315,17 @@ export class SoulStateManager {
       log.push(`Shadow material surfaced: ${shadowSurfaced}`)
     }
 
+    // Store updated instinct/reflex state
+    context.instinctReflexState = irState
+
     return {
       response,
       newState,
       activationPattern: interactions,
-      processingLog: log
+      processingLog: log,
+      reflexResponse,
+      instinctInfluence,
+      subconsciousInfluence
     }
   }
 
@@ -580,6 +682,105 @@ export class SoulStateManager {
     }
 
     return null
+  }
+
+  /**
+   * Convert input to stimulus for reflex checking
+   */
+  private inputToStimulus(input: string, context: any): Stimulus {
+    const text = input.toLowerCase()
+
+    // Calculate intensity based on input characteristics
+    let intensity = 0.3 // Base
+
+    // Exclamation marks, all caps = higher intensity
+    if (/!/.test(input)) intensity += 0.2
+    if (/[A-Z]{3,}/.test(input)) intensity += 0.2
+
+    // Urgent context
+    if (context.urgent) intensity += 0.3
+
+    // Threat words
+    if (/\b(danger|threat|attack|harm|kill|hurt)\b/i.test(input)) {
+      intensity += 0.4
+    }
+
+    // Opportunity words
+    if (/\b(urgent|now|quick|fast|immediate|opportunity)\b/i.test(input)) {
+      intensity += 0.2
+    }
+
+    intensity = Math.min(1, intensity)
+
+    // Determine type
+    let type: 'threat' | 'opportunity' | 'social' | 'neutral' = 'neutral'
+
+    if (/\b(danger|threat|attack|harm)\b/i.test(input)) {
+      type = 'threat'
+    } else if (/\b(opportunity|reward|gain|benefit)\b/i.test(input)) {
+      type = 'opportunity'
+    } else if (/\b(friend|ally|help|support|connect)\b/i.test(input)) {
+      type = 'social'
+    }
+
+    // Direction (simplified - would be more sophisticated in real impl)
+    const direction = type === 'threat' ? 'front' : 'none'
+
+    return {
+      type,
+      intensity,
+      suddenness: context.sudden ? 0.8 : 0.3,
+      direction,
+      proximity: context.proximity || 0.5
+    }
+  }
+
+  /**
+   * Generate immediate reflex response
+   */
+  private generateReflexResponse(reflex: ReflexResponse, input: string): string {
+    const responses: Record<string, string[]> = {
+      startle: [
+        'Whoa!',
+        '*startles*',
+        'That was unexpected!'
+      ],
+      recoil: [
+        '*steps back*',
+        'Hold on...',
+        'Wait, what?'
+      ],
+      freeze: [
+        '...',
+        '*pauses*',
+        '*holds still*'
+      ],
+      flinch: [
+        '*winces*',
+        'Ow!',
+        '*reacts sharply*'
+      ],
+      grasp: [
+        '*reaches for it*',
+        'Got it!',
+        '*grabs quickly*'
+      ],
+      orient: [
+        '*looks around*',
+        '*focuses attention*',
+        'What was that?'
+      ]
+    }
+
+    const options = responses[reflex.type] || ['*automatic reaction*']
+    return options[Math.floor(Math.random() * options.length)]
+  }
+
+  /**
+   * Generate automatic habit response
+   */
+  private generateHabitResponse(habit: any, input: string): string {
+    return `*automatic habit: ${habit.pattern}*`
   }
 }
 
