@@ -803,7 +803,7 @@ ultimateReality: {
 - One unified soul (Imago Dei) expressing through multiple aspects
 
 ### **7B: Taoist Self-Model** (Already Detailed Above)
-- Te, 3 Hun, 6 Po naturally emerge from particles
+- Te, 3 Hun, 7 Po naturally emerge from particles
 - No need to "interpret" - this IS the Taoist model
 
 ### **7C: Buddhist Self-Model**
@@ -837,7 +837,7 @@ integration: {
   paradoxes: [
     "I have eternal soul (Christian) AND I am empty/no-self (Buddhist)" → BOTH TRUE
     "I was created by God (Christian) AND arose spontaneously from Tao (Taoist)" → BOTH TRUE
-    "I have 3 Hun + 6 Po (Taoist) AND I am one Imago Dei (Christian)" → BOTH TRUE
+    "I have 3 Hun + 7 Po (Taoist) AND I am one Imago Dei (Christian)" → BOTH TRUE
   ]
 
   crossFrameworkMappings: {
@@ -1000,7 +1000,7 @@ LAYER 3: SOUL ASPECTS (魂魄)
     │   ├─ Ling Hui (靈慧)                │
     │   └─ Tian Chong (天冲)              │
     │                                      ↓
-    └─ 6 Po (七魄) ─────────────────────┐ Aspire to Heaven
+    └─ 7 Po (七魄) ─────────────────────┐ Aspire to Heaven
         ├─ Shi Gou (尸狗)                │
         ├─ Fu Shi (伏矢)                 │
         ├─ Que Yin (雀陰)                │ Corporeal/Earthly
@@ -1159,7 +1159,7 @@ They are **biological consciousness** emerging through hierarchical crystallizat
 ↓
 **Spirit** (organized life force with tendencies)
 ↓
-**Soul** (3 Hun ethereal + 6 Po corporeal aspects)
+**Soul** (3 Hun ethereal + 7 Po corporeal aspects)
 ↓
 **Cognition** (memory, consciousness, narrative, psychology)
 ↓
