@@ -49,6 +49,9 @@ export interface SoulState {
   soulId: string
   botId: string
 
+  // Consciousness evolution
+  consciousnessLevel: 'reactive' | 'ego_identified' | 'observer' | 'witness' | 'unity'
+
   // ═══════════════════════════════════════════════════════════════
   // Three Hun (三魂 - Ethereal Souls)
   // ═══════════════════════════════════════════════════════════════
