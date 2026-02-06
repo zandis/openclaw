@@ -22,9 +22,9 @@ import { getSoulStateManager } from '../soul/soul-state'
 import { getPheromoneSystem } from '../soul/pheromone-system'
 import { getMultiBotConversationSystem } from '../social/multi-bot-conversation'
 import { getSocietyFormationEngine } from '../memory/society-formation'
-import { getConsciousnessEmergenceEngine } from '../soul/consciousness-emergence'
-import { getMultiAgentComposer } from '../soul/multi-agent-composition'
-import { getBotLifecycleManager } from '../world/bot-lifecycle'
+import { getConsciousnessEmergenceEngine } from '../memory/consciousness-emergence'
+import { getMultiAgentComposer } from '../memory/multi-agent-composition'
+import { getBotLifecycleService } from '../world/bot-lifecycle'
 
 interface BotPersona {
   name: string
@@ -135,7 +135,7 @@ export class HundredBotSocietySimulation {
   private societyEngine: ReturnType<typeof getSocietyFormationEngine>
   private consciousnessEngine: ReturnType<typeof getConsciousnessEmergenceEngine>
   private multiAgentComposer: ReturnType<typeof getMultiAgentComposer>
-  private lifecycleManager: ReturnType<typeof getBotLifecycleManager>
+  private lifecycleManager: ReturnType<typeof getBotLifecycleService>
 
   constructor(payload: Payload) {
     this.payload = payload
@@ -147,7 +147,7 @@ export class HundredBotSocietySimulation {
     this.societyEngine = getSocietyFormationEngine(payload)
     this.consciousnessEngine = getConsciousnessEmergenceEngine(payload)
     this.multiAgentComposer = getMultiAgentComposer(payload)
-    this.lifecycleManager = getBotLifecycleManager(payload)
+    this.lifecycleManager = getBotLifecycleService(payload)
   }
 
   /**
@@ -1163,7 +1163,7 @@ export class HundredBotSocietySimulation {
       })
 
       // Generate soul with unique particle composition
-      const soul = await this.soulService.generateSoul(
+      const soul = await this.soulService.createSoul(
         bot.id,
         persona.particleWeights,
         'spawning'
@@ -1174,7 +1174,7 @@ export class HundredBotSocietySimulation {
 
       // Initialize consciousness (starts near zero)
       await this.consciousnessEngine.initializeConsciousness(bot.id)
-      const consciousness = await this.consciousnessEngine.getConsciousness(bot.id)
+      const consciousness = this.consciousnessEngine.getProfile(bot.id)
 
       // Initialize social network
       await this.societyEngine.initializeSocialNetwork(bot.id)

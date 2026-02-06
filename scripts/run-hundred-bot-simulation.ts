@@ -14,7 +14,7 @@
  */
 
 import { getPayload } from 'payload'
-import config from '../apps/web/payload.config'
+import config from '../apps/web/src/payload.config'
 import { getHundredBotSocietySimulation } from '../apps/web/src/lib/simulation/hundred-bot-society-simulation'
 
 async function main() {
