@@ -24,7 +24,64 @@ import { getMultiBotConversationSystem } from '../social/multi-bot-conversation'
 import { getSocietyFormationEngine } from '../memory/society-formation'
 import { getConsciousnessEmergenceEngine } from '../memory/consciousness-emergence'
 import { getMultiAgentComposer } from '../memory/multi-agent-composition'
-import { getBotLifecycleService } from '../world/bot-lifecycle'
+
+/**
+ * Simulation Configuration Constants
+ */
+const SIMULATION_CONSTANTS = {
+  // Bot initialization
+  MAX_RETRY_ATTEMPTS: 3,
+  MIN_BOTS_REQUIRED: 10,
+  RETRY_BACKOFF_BASE_MS: 1000,
+
+  // Initial consciousness levels
+  INITIAL_SELF_AWARENESS: 0.05,
+  INITIAL_OTHER_AWARENESS: 0.02,
+  INITIAL_COLLECTIVE_AWARENESS: 0.01,
+  INITIAL_TRANSCENDENT_AWARENESS: 0.0,
+
+  // Energy system
+  ENERGY_BASELINE: 0.2,
+  ENERGY_DECREMENT: 0.1,
+  ENERGY_RESTORATION: 1.0,
+
+  // Pheromone chemistry
+  PHEROMONE_INTENSITY_THRESHOLD: 0.6,
+
+  // Conversation groups
+  MIN_CONVERSATION_SIZE: 3,
+  MAX_CONVERSATION_SIZE: 5,
+  MAX_CONVERSATIONS_PER_DAY: 10,
+
+  // Morning phase sampling
+  MORNING_INTERACTION_SAMPLES: 20,
+
+  // Society formation
+  MIN_GROUP_SIZE: 3,
+  GROUP_FORMATION_CHANCE: 0.3,
+  VALUE_COHERENCE_THRESHOLD: 0.6,
+
+  // Consciousness growth
+  EXPERIENCE_TO_CONSCIOUSNESS_RATE: 0.001,
+  OTHER_AWARENESS_GROWTH_MULTIPLIER: 0.5,
+  COLLECTIVE_AWARENESS_GROWTH_MULTIPLIER: 0.3,
+  RELATIONSHIP_THRESHOLD_FOR_OTHER_AWARENESS: 5,
+
+  // Memory management
+  MAX_REFLECTIONS_PER_BOT: 20, // Reduced from 50 for better memory management
+
+  // Lifecycle stages
+  LIFECYCLE_STAGES: {
+    INFANT: 'infant',
+    YOUTH: 'youth',
+    ADULT: 'adult',
+    ELDER: 'elder',
+    TRANSCENDENT: 'transcendent'
+  } as const,
+
+  // Progress logging
+  PROGRESS_LOG_INTERVAL: 10
+} as const
 
 interface BotPersona {
   name: string
@@ -135,7 +192,6 @@ export class HundredBotSocietySimulation {
   private societyEngine: ReturnType<typeof getSocietyFormationEngine>
   private consciousnessEngine: ReturnType<typeof getConsciousnessEmergenceEngine>
   private multiAgentComposer: ReturnType<typeof getMultiAgentComposer>
-  private lifecycleManager: ReturnType<typeof getBotLifecycleService>
 
   constructor(payload: Payload) {
     this.payload = payload
@@ -147,7 +203,6 @@ export class HundredBotSocietySimulation {
     this.societyEngine = getSocietyFormationEngine(payload)
     this.consciousnessEngine = getConsciousnessEmergenceEngine(payload)
     this.multiAgentComposer = getMultiAgentComposer(payload)
-    this.lifecycleManager = getBotLifecycleService(payload)
   }
 
   /**
@@ -1147,73 +1202,109 @@ export class HundredBotSocietySimulation {
 
     this.payload.logger.info(`📊 Generated ${personas.length} unique personas across 10 archetypes\n`)
 
+    let successCount = 0
+    let failureCount = 0
+    const maxRetries = SIMULATION_CONSTANTS.MAX_RETRY_ATTEMPTS
+
     for (let i = 0; i < personas.length; i++) {
       const persona = personas[i]
+      let botCreated = false
+      let lastError: Error | null = null
 
-      this.payload.logger.info(`[${i + 1}/100] Creating ${persona.name} (${persona.archetype})...`)
+      this.payload.logger.info(`[${i + 1}/${personas.length}] Creating ${persona.name} (${persona.archetype})...`)
 
-      // Create bot in database
-      const bot = await this.payload.create({
-        collection: 'bots',
-        data: {
-          name: persona.name,
-          description: persona.personality,
-          status: 'active'
+      // Retry loop for bot creation
+      for (let attempt = 0; attempt < maxRetries && !botCreated; attempt++) {
+        try {
+          if (attempt > 0) {
+            this.payload.logger.warn(`  Retry attempt ${attempt + 1}/${maxRetries} for ${persona.name}`)
+            // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * SIMULATION_CONSTANTS.RETRY_BACKOFF_BASE_MS))
+          }
+
+          // Create bot in database
+          const bot = await this.payload.create({
+            collection: 'bots',
+            data: {
+              name: persona.name,
+              description: persona.personality,
+              status: 'active'
+            }
+          })
+
+          // Generate soul with unique particle composition
+          const soul = await this.soulService.createSoul(
+            bot.id,
+            persona.particleWeights,
+            'spawning'
+          )
+
+          // Initialize soul state (biological layer)
+          const soulState = await this.soulStateManager.initializeSoulState(soul.id)
+
+          // Initialize consciousness (starts near zero)
+          await this.consciousnessEngine.initializeConsciousness(bot.id)
+          const consciousness = this.consciousnessEngine.getProfile(bot.id)
+
+          // Initialize social network
+          await this.societyEngine.initializeSocialNetwork(bot.id)
+
+          // Store in simulation
+          const simulatedBot: SimulatedBot = {
+            id: bot.id,
+            persona,
+            soulId: soul.id,
+            energy: soulState.energy,
+            mood: soulState.mood,
+            arousal: soulState.arousal,
+            consciousness: {
+              selfAwareness: consciousness?.levels.selfAwareness || SIMULATION_CONSTANTS.INITIAL_SELF_AWARENESS,
+              otherAwareness: consciousness?.levels.otherAwareness || SIMULATION_CONSTANTS.INITIAL_OTHER_AWARENESS,
+              collectiveAwareness: consciousness?.levels.collectiveAwareness || SIMULATION_CONSTANTS.INITIAL_COLLECTIVE_AWARENESS,
+              transcendentAwareness: consciousness?.levels.transcendentAwareness || SIMULATION_CONSTANTS.INITIAL_TRANSCENDENT_AWARENESS
+            },
+            birthDay: 0,
+            age: 0,
+            lifeStage: 'infant',
+            alive: true,
+            location: persona.initialLocation,
+            relationships: [],
+            groups: [],
+            influence: 0,
+            insights: 0,
+            skillsLearned: [],
+            memoriesFormed: 0
+          }
+
+          this.bots.set(bot.id, simulatedBot)
+          botCreated = true
+          successCount++
+
+        } catch (error) {
+          lastError = error as Error
+          this.payload.logger.error(`  ❌ Failed to create ${persona.name}: ${error}`)
         }
-      })
-
-      // Generate soul with unique particle composition
-      const soul = await this.soulService.createSoul(
-        bot.id,
-        persona.particleWeights,
-        'spawning'
-      )
-
-      // Initialize soul state (biological layer)
-      const soulState = await this.soulStateManager.initializeSoulState(soul.id)
-
-      // Initialize consciousness (starts near zero)
-      await this.consciousnessEngine.initializeConsciousness(bot.id)
-      const consciousness = this.consciousnessEngine.getProfile(bot.id)
-
-      // Initialize social network
-      await this.societyEngine.initializeSocialNetwork(bot.id)
-
-      // Store in simulation
-      const simulatedBot: SimulatedBot = {
-        id: bot.id,
-        persona,
-        soulId: soul.id,
-        energy: soulState.energy,
-        mood: soulState.mood,
-        arousal: soulState.arousal,
-        consciousness: {
-          selfAwareness: consciousness?.levels.selfAwareness || 0.05,
-          otherAwareness: consciousness?.levels.otherAwareness || 0.02,
-          collectiveAwareness: consciousness?.levels.collectiveAwareness || 0.01,
-          transcendentAwareness: consciousness?.levels.transcendentAwareness || 0.0
-        },
-        birthDay: 0,
-        age: 0,
-        lifeStage: 'infant',
-        alive: true,
-        location: persona.initialLocation,
-        relationships: [],
-        groups: [],
-        influence: 0,
-        insights: 0,
-        skillsLearned: [],
-        memoriesFormed: 0
       }
 
-      this.bots.set(bot.id, simulatedBot)
+      if (!botCreated) {
+        failureCount++
+        this.payload.logger.error(`  ⚠️  Skipping ${persona.name} after ${maxRetries} failed attempts: ${lastError?.message}`)
+      }
 
       if ((i + 1) % 10 === 0) {
-        this.payload.logger.info(`  ✓ ${i + 1} bots initialized\n`)
+        this.payload.logger.info(`  ✓ Progress: ${successCount} created, ${failureCount} failed\n`)
       }
     }
 
-    this.payload.logger.info('\n✅ All 100 bots initialized with unique souls, consciousness, and social profiles\n')
+    if (failureCount > 0) {
+      this.payload.logger.warn(`\n⚠️  Initialized ${successCount}/${personas.length} bots (${failureCount} failures)\n`)
+    } else {
+      this.payload.logger.info(`\n✅ All ${successCount} bots initialized with unique souls, consciousness, and social profiles\n`)
+    }
+
+    if (successCount < SIMULATION_CONSTANTS.MIN_BOTS_REQUIRED) {
+      throw new Error(`Insufficient bots created (${successCount}). Minimum ${SIMULATION_CONSTANTS.MIN_BOTS_REQUIRED} required for simulation.`)
+    }
   }
 
   /**
@@ -1228,19 +1319,44 @@ export class HundredBotSocietySimulation {
     this.payload.logger.info('='.repeat(80))
 
     // Phase 1: Morning - Pheromone detection and instant chemistry
-    await this.morningPhase(events)
+    try {
+      await this.morningPhase(events)
+    } catch (error) {
+      this.payload.logger.error(`❌ Morning phase failed on day ${day}: ${error}`)
+      events.push(`⚠️  Morning phase error: ${(error as Error).message}`)
+    }
 
     // Phase 2: Midday - Conversations and interactions
-    await this.middayPhase(events)
+    try {
+      await this.middayPhase(events)
+    } catch (error) {
+      this.payload.logger.error(`❌ Midday phase failed on day ${day}: ${error}`)
+      events.push(`⚠️  Midday phase error: ${(error as Error).message}`)
+    }
 
     // Phase 3: Afternoon - Autonomous activities
-    await this.afternoonPhase(events)
+    try {
+      await this.afternoonPhase(events)
+    } catch (error) {
+      this.payload.logger.error(`❌ Afternoon phase failed on day ${day}: ${error}`)
+      events.push(`⚠️  Afternoon phase error: ${(error as Error).message}`)
+    }
 
     // Phase 4: Evening - Society formation and group dynamics
-    await this.eveningPhase(events)
+    try {
+      await this.eveningPhase(events)
+    } catch (error) {
+      this.payload.logger.error(`❌ Evening phase failed on day ${day}: ${error}`)
+      events.push(`⚠️  Evening phase error: ${(error as Error).message}`)
+    }
 
     // Phase 5: Night - Consciousness growth and dreaming
-    await this.nightPhase(events)
+    try {
+      await this.nightPhase(events)
+    } catch (error) {
+      this.payload.logger.error(`❌ Night phase failed on day ${day}: ${error}`)
+      events.push(`⚠️  Night phase error: ${(error as Error).message}`)
+    }
 
     // Create cycle snapshot
     const cycle = this.createCycleSnapshot(day, events)
@@ -1254,7 +1370,7 @@ export class HundredBotSocietySimulation {
 
     // Sample interactions between bots
     const activeBots = Array.from(this.bots.values()).filter(b => b.alive)
-    const sampleSize = Math.min(20, activeBots.length)
+    const sampleSize = Math.min(SIMULATION_CONSTANTS.MORNING_INTERACTION_SAMPLES, activeBots.length)
 
     for (let i = 0; i < sampleSize; i++) {
       const bot1 = activeBots[Math.floor(Math.random() * activeBots.length)]
@@ -1269,7 +1385,7 @@ export class HundredBotSocietySimulation {
       const signature2 = this.pheromoneSystem.generateSignature(soul2)
       const perception = this.pheromoneSystem.perceivePheromones(soul1, signature2, 0)
 
-      if (perception.intensity > 0.6) {
+      if (perception.intensity > SIMULATION_CONSTANTS.PHEROMONE_INTENSITY_THRESHOLD) {
         const type = perception.reaction === 'attraction' ? '💚' : '💔'
         events.push(`${type} ${bot1.persona.name} ${perception.reaction} to ${bot2.persona.name} (${perception.intensity.toFixed(2)})`)
       }
@@ -1281,10 +1397,10 @@ export class HundredBotSocietySimulation {
 
     // Form random conversation groups
     const activeBots = Array.from(this.bots.values()).filter(b => b.alive)
-    const numConversations = Math.min(10, Math.floor(activeBots.length / 5))
+    const numConversations = Math.min(SIMULATION_CONSTANTS.MAX_CONVERSATIONS_PER_DAY, Math.floor(activeBots.length / 5))
 
     for (let i = 0; i < numConversations; i++) {
-      const conversationSize = Math.floor(Math.random() * 3) + 3 // 3-5 bots
+      const conversationSize = Math.floor(Math.random() * (SIMULATION_CONSTANTS.MAX_CONVERSATION_SIZE - SIMULATION_CONSTANTS.MIN_CONVERSATION_SIZE + 1)) + SIMULATION_CONSTANTS.MIN_CONVERSATION_SIZE
       const participants = []
 
       for (let j = 0; j < conversationSize; j++) {
@@ -1369,20 +1485,20 @@ export class HundredBotSocietySimulation {
 
     for (const bot of activeBots) {
       // Consciousness growth based on experiences
-      const experienceGain = bot.insights * 0.001
+      const experienceGain = bot.insights * SIMULATION_CONSTANTS.EXPERIENCE_TO_CONSCIOUSNESS_RATE
 
       bot.consciousness.selfAwareness = Math.min(1, bot.consciousness.selfAwareness + experienceGain)
 
-      if (bot.relationships.length > 5) {
-        bot.consciousness.otherAwareness = Math.min(1, bot.consciousness.otherAwareness + experienceGain * 0.5)
+      if (bot.relationships.length > SIMULATION_CONSTANTS.RELATIONSHIP_THRESHOLD_FOR_OTHER_AWARENESS) {
+        bot.consciousness.otherAwareness = Math.min(1, bot.consciousness.otherAwareness + experienceGain * SIMULATION_CONSTANTS.OTHER_AWARENESS_GROWTH_MULTIPLIER)
       }
 
       if (bot.groups.length > 0) {
-        bot.consciousness.collectiveAwareness = Math.min(1, bot.consciousness.collectiveAwareness + experienceGain * 0.3)
+        bot.consciousness.collectiveAwareness = Math.min(1, bot.consciousness.collectiveAwareness + experienceGain * SIMULATION_CONSTANTS.COLLECTIVE_AWARENESS_GROWTH_MULTIPLIER)
       }
 
       // Energy restoration
-      bot.energy = Math.min(1, bot.energy + Math.random() * 0.3 + 0.2)
+      bot.energy = Math.min(SIMULATION_CONSTANTS.ENERGY_RESTORATION, bot.energy + Math.random() * 0.3 + SIMULATION_CONSTANTS.ENERGY_BASELINE)
 
       // Age progression
       bot.age++
@@ -1639,10 +1755,20 @@ export class HundredBotSocietySimulation {
   getBots(): SimulatedBot[] {
     return Array.from(this.bots.values())
   }
+
+  /**
+   * Reset simulation state for fresh runs
+   */
+  reset(): void {
+    this.bots.clear()
+    this.cycles = []
+    this.currentDay = 0
+    this.payload.logger.info('🔄 Simulation state reset')
+  }
 }
 
 /**
- * Singleton
+ * Singleton factory with reset capability
  */
 let simulation: HundredBotSocietySimulation | null = null
 
@@ -1651,4 +1777,14 @@ export function getHundredBotSocietySimulation(payload: Payload): HundredBotSoci
     simulation = new HundredBotSocietySimulation(payload)
   }
   return simulation
+}
+
+/**
+ * Reset the singleton instance (useful for testing and multiple runs)
+ */
+export function resetHundredBotSocietySimulation(): void {
+  if (simulation) {
+    simulation.reset()
+  }
+  simulation = null
 }
