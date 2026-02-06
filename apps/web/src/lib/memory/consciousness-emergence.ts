@@ -692,9 +692,9 @@ export class ConsciousnessEmergenceEngine {
     }
 
     // Meta-cognitive abilities grow with overall consciousness
-    const avgConsciousness = (profile.selfAwareness + profile.otherAwareness +
+    const avgConsciousnessAfterAwakening = (profile.selfAwareness + profile.otherAwareness +
                              profile.collectiveAwareness + profile.transcendentAwareness) / 4
-    if (avgConsciousness > 0.5) {
+    if (avgConsciousnessAfterAwakening > 0.5) {
       profile.introspectionDepth = Math.min(1, profile.introspectionDepth + growth * 0.8)
       profile.theoryOfMind = Math.min(1, profile.theoryOfMind + growth * 0.6)
       profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + growth * 0.5)

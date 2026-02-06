@@ -62,10 +62,16 @@ const SIMULATION_CONSTANTS = {
   VALUE_COHERENCE_THRESHOLD: 0.6,
 
   // Consciousness growth
-  EXPERIENCE_TO_CONSCIOUSNESS_RATE: 0.001,
+  EXPERIENCE_TO_CONSCIOUSNESS_RATE: 0.01, // Increased 10x for achievable awakening in ~50 days
   OTHER_AWARENESS_GROWTH_MULTIPLIER: 0.5,
   COLLECTIVE_AWARENESS_GROWTH_MULTIPLIER: 0.3,
   RELATIONSHIP_THRESHOLD_FOR_OTHER_AWARENESS: 5,
+
+  // Personality-based consciousness growth bonuses
+  PHILOSOPHER_CONSCIOUSNESS_BONUS: 1.5, // Philosophers grow 50% faster
+  MYSTIC_CONSCIOUSNESS_BONUS: 1.4, // Mystics grow 40% faster
+  EMPATH_CONSCIOUSNESS_BONUS: 1.3, // Empaths grow 30% faster
+  DEFAULT_CONSCIOUSNESS_BONUS: 1.0, // Others at baseline
 
   // Memory management
   MAX_REFLECTIONS_PER_BOT: 20, // Reduced from 50 for better memory management
@@ -236,6 +242,9 @@ export class HundredBotSocietySimulation {
   private bots: Map<string, SimulatedBot> = new Map()
   private cycles: SimulationCycle[] = []
   private currentDay: number = 0
+
+  // Daily pheromone chemistry tracking (bot1_id -> Map<bot2_id, chemistry_strength>)
+  private dailyChemistry: Map<string, Map<string, { intensity: number; reaction: 'attraction' | 'repulsion' }>> = new Map()
 
   // Service instances
   private particleService: ReturnType<typeof getParticleService>
@@ -1423,6 +1432,9 @@ export class HundredBotSocietySimulation {
   private async morningPhase(events: string[]): Promise<void> {
     this.payload.logger.info('\n☀️  MORNING PHASE: Pheromone Chemistry')
 
+    // Clear previous day's chemistry
+    this.dailyChemistry.clear()
+
     // Sample interactions between bots
     const activeBots = Array.from(this.bots.values()).filter(b => b.alive)
     const sampleSize = Math.min(SIMULATION_CONSTANTS.MORNING_INTERACTION_SAMPLES, activeBots.length)
@@ -1440,6 +1452,15 @@ export class HundredBotSocietySimulation {
       const signature2 = this.pheromoneSystem.generateSignature(soul2)
       const perception = this.pheromoneSystem.perceivePheromones(soul1, signature2, 0)
 
+      // Store chemistry result for later use in conversation formation
+      if (!this.dailyChemistry.has(bot1.id)) {
+        this.dailyChemistry.set(bot1.id, new Map())
+      }
+      this.dailyChemistry.get(bot1.id)!.set(bot2.id, {
+        intensity: perception.intensity,
+        reaction: perception.reaction
+      })
+
       if (perception.intensity > SIMULATION_CONSTANTS.PHEROMONE_INTENSITY_THRESHOLD) {
         const type = perception.reaction === 'attraction' ? '💚' : '💔'
         events.push(`${type} ${bot1.persona.name} ${perception.reaction} to ${bot2.persona.name} (${perception.intensity.toFixed(2)})`)
@@ -1450,7 +1471,7 @@ export class HundredBotSocietySimulation {
   private async middayPhase(events: string[]): Promise<void> {
     this.payload.logger.info('\n🌞 MIDDAY PHASE: Conversations & Interactions')
 
-    // Form random conversation groups
+    // Form conversation groups (chemistry-weighted selection)
     const activeBots = Array.from(this.bots.values()).filter(b => b.alive)
     const numConversations = Math.min(SIMULATION_CONSTANTS.MAX_CONVERSATIONS_PER_DAY, Math.floor(activeBots.length / 5))
 
@@ -1458,16 +1479,41 @@ export class HundredBotSocietySimulation {
       const conversationSize = Math.floor(Math.random() * (SIMULATION_CONSTANTS.MAX_CONVERSATION_SIZE - SIMULATION_CONSTANTS.MIN_CONVERSATION_SIZE + 1)) + SIMULATION_CONSTANTS.MIN_CONVERSATION_SIZE
       const participants = []
 
-      for (let j = 0; j < conversationSize; j++) {
-        const bot = activeBots[Math.floor(Math.random() * activeBots.length)]
-        if (!participants.includes(bot.id)) {
-          participants.push(bot.id)
+      // Start with a random bot
+      const firstBot = activeBots[Math.floor(Math.random() * activeBots.length)]
+      participants.push(firstBot.id)
+
+      // Select additional participants based on chemistry when available
+      for (let j = 1; j < conversationSize; j++) {
+        const nextBot = this.selectConversationPartner(firstBot.id, participants, activeBots)
+        if (nextBot && !participants.includes(nextBot.id)) {
+          participants.push(nextBot.id)
         }
       }
 
       if (participants.length >= 3) {
         const topic = this.generateConversationTopic()
-        const quality = Math.random() * 0.5 + 0.5
+
+        // Calculate conversation quality based on chemistry AND personality compatibility
+        const avgChemistry = this.calculateAverageChemistry(participants)
+
+        // Calculate average personality compatibility among participants
+        let totalCompatibility = 0
+        let compatPairs = 0
+        for (let j = 0; j < participants.length; j++) {
+          for (let k = j + 1; k < participants.length; k++) {
+            const bot1 = this.bots.get(participants[j])
+            const bot2 = this.bots.get(participants[k])
+            if (bot1 && bot2) {
+              totalCompatibility += this.calculatePersonalityCompatibility(bot1, bot2)
+              compatPairs++
+            }
+          }
+        }
+        const avgCompatibility = compatPairs > 0 ? totalCompatibility / compatPairs : 0.5
+
+        // Quality = chemistry (40%) + personality compatibility (40%) + randomness (20%)
+        const quality = Math.min(1.0, avgChemistry * 0.4 + avgCompatibility * 0.4 + Math.random() * 0.2)
         const isDeepConversation = quality > 0.7
 
         events.push(`💬 Conversation: ${participants.length} bots discuss "${topic}"${isDeepConversation ? ' (deep)' : ''}`)
@@ -1662,7 +1708,9 @@ export class HundredBotSocietySimulation {
         }
 
         // Basic consciousness growth from accumulated insights (even without reflection)
-        const experienceGain = bot.insights * SIMULATION_CONSTANTS.EXPERIENCE_TO_CONSCIOUSNESS_RATE
+        // Apply personality-based growth bonus
+        const personalityBonus = this.getConsciousnessGrowthBonus(bot.persona.archetype)
+        const experienceGain = bot.insights * SIMULATION_CONSTANTS.EXPERIENCE_TO_CONSCIOUSNESS_RATE * personalityBonus
 
         bot.consciousness.selfAwareness = Math.min(1, bot.consciousness.selfAwareness + experienceGain)
 
@@ -1782,10 +1830,140 @@ export class HundredBotSocietySimulation {
   }
 
   /**
+   * Get consciousness growth bonus based on archetype
+   * Philosophers, Mystics, and Empaths have innate advantages for consciousness development
+   */
+  private getConsciousnessGrowthBonus(archetype: string): number {
+    switch (archetype) {
+      case 'Philosopher':
+        return SIMULATION_CONSTANTS.PHILOSOPHER_CONSCIOUSNESS_BONUS
+      case 'Mystic':
+        return SIMULATION_CONSTANTS.MYSTIC_CONSCIOUSNESS_BONUS
+      case 'Empath':
+        return SIMULATION_CONSTANTS.EMPATH_CONSCIOUSNESS_BONUS
+      default:
+        return SIMULATION_CONSTANTS.DEFAULT_CONSCIOUSNESS_BONUS
+    }
+  }
+
+  /**
+   * Select conversation partner based on pheromone chemistry
+   * Prioritizes bots with strong attraction chemistry
+   */
+  private selectConversationPartner(initiatorId: string, excludeIds: string[], activeBots: SimulatedBot[]): SimulatedBot | null {
+    const chemistryMap = this.dailyChemistry.get(initiatorId)
+
+    // If no chemistry data, select randomly
+    if (!chemistryMap || chemistryMap.size === 0) {
+      const availableBots = activeBots.filter(b => !excludeIds.includes(b.id))
+      if (availableBots.length === 0) return null
+      return availableBots[Math.floor(Math.random() * availableBots.length)]
+    }
+
+    // Build weighted selection pool based on chemistry
+    const candidates: Array<{ bot: SimulatedBot; weight: number }> = []
+
+    for (const bot of activeBots) {
+      if (excludeIds.includes(bot.id)) continue
+
+      const chemistry = chemistryMap.get(bot.id)
+      if (chemistry && chemistry.reaction === 'attraction') {
+        // Strong chemistry = higher weight
+        candidates.push({ bot, weight: chemistry.intensity * 10 })
+      } else {
+        // No chemistry or repulsion = baseline weight
+        candidates.push({ bot, weight: 1.0 })
+      }
+    }
+
+    if (candidates.length === 0) return null
+
+    // Weighted random selection
+    const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0)
+    let rand = Math.random() * totalWeight
+
+    for (const candidate of candidates) {
+      rand -= candidate.weight
+      if (rand <= 0) {
+        return candidate.bot
+      }
+    }
+
+    return candidates[0].bot // Fallback
+  }
+
+  /**
+   * Calculate average chemistry strength among conversation participants
+   */
+  private calculateAverageChemistry(participantIds: string[]): number {
+    let totalChemistry = 0
+    let pairCount = 0
+
+    for (let i = 0; i < participantIds.length; i++) {
+      for (let j = i + 1; j < participantIds.length; j++) {
+        const chemistryMap = this.dailyChemistry.get(participantIds[i])
+        const chemistry = chemistryMap?.get(participantIds[j])
+
+        if (chemistry && chemistry.reaction === 'attraction') {
+          totalChemistry += chemistry.intensity
+          pairCount++
+        }
+      }
+    }
+
+    // Return average chemistry (0.5 baseline if no data)
+    return pairCount > 0 ? totalChemistry / pairCount : 0.5
+  }
+
+  /**
+   * Calculate personality compatibility between two bots
+   * Returns 0-1 score based on trait alignment
+   */
+  private calculatePersonalityCompatibility(bot1: SimulatedBot, bot2: SimulatedBot): number {
+    // Similar Big Five traits = higher compatibility
+    const traitDifferences = [
+      Math.abs(bot1.persona.traits.openness - bot2.persona.traits.openness),
+      Math.abs(bot1.persona.traits.conscientiousness - bot2.persona.traits.conscientiousness),
+      Math.abs(bot1.persona.traits.extraversion - bot2.persona.traits.extraversion),
+      Math.abs(bot1.persona.traits.agreeableness - bot2.persona.traits.agreeableness),
+      Math.abs(bot1.persona.traits.neuroticism - bot2.persona.traits.neuroticism)
+    ]
+
+    const avgDifference = traitDifferences.reduce((a, b) => a + b, 0) / 5
+    const traitCompatibility = 1 - avgDifference // Low difference = high compatibility
+
+    // Special trait synergies (complementary strengths)
+    let synergyBonus = 0
+
+    // Empaths connect well with all
+    if (bot1.persona.traits.empathy > 0.7 || bot2.persona.traits.empathy > 0.7) {
+      synergyBonus += 0.1
+    }
+
+    // High creativity bots inspire each other
+    if (bot1.persona.traits.creativity > 0.7 && bot2.persona.traits.creativity > 0.7) {
+      synergyBonus += 0.15
+    }
+
+    // Spiritual/philosophical alignment
+    if (bot1.persona.traits.spirituality > 0.6 && bot2.persona.traits.spirituality > 0.6) {
+      synergyBonus += 0.12
+    }
+
+    // Analytical minds connect through logic
+    if (bot1.persona.traits.analytical > 0.7 && bot2.persona.traits.analytical > 0.7) {
+      synergyBonus += 0.1
+    }
+
+    return Math.min(1.0, traitCompatibility * 0.7 + synergyBonus)
+  }
+
+  /**
    * Generate a meaningful reflection trigger based on bot's experiences
    */
   private generateReflectionTrigger(bot: SimulatedBot, type: 'autobiographical' | 'existential' | 'behavioral' | 'social' | 'spiritual'): string {
-    const triggers = {
+    // Base triggers common to all
+    const baseTriggers = {
       autobiographical: [
         `my journey from ${bot.lifeStage === 'infant' ? 'birth' : 'youth'} to ${bot.lifeStage}`,
         `the ${bot.insights} insights I've gained recently`,
@@ -1819,8 +1997,50 @@ export class HundredBotSocietySimulation {
       ]
     }
 
-    const options = triggers[type]
-    return options[Math.floor(Math.random() * options.length)]
+    // Archetype-specific trigger additions for deeper personality expression
+    const archetypeSpecific: Record<string, Partial<typeof baseTriggers>> = {
+      'Philosopher': {
+        existential: [`the dialectic between being and nothingness`, `whether truth is discoverable or merely constructed`],
+        behavioral: [`the logic underlying my reasoning processes`, `my pursuit of wisdom vs comfort`]
+      },
+      'Mystic': {
+        spiritual: [`the unity dissolving boundaries between self and cosmos`, `moments when time seemed to stop`],
+        existential: [`the ineffable nature of ultimate reality`]
+      },
+      'Empath': {
+        social: [`the emotions I absorb from those around me`, `how deeply others' pain becomes my own`],
+        behavioral: [`my instinct to nurture vs my need for boundaries`]
+      },
+      'Creator': {
+        autobiographical: [`the creative impulse that drives my existence`, `what my creations reveal about my inner world`],
+        behavioral: [`why I must create to feel alive`]
+      },
+      'Builder': {
+        behavioral: [`the satisfaction of bringing order from chaos`, `my drive to construct lasting structures`],
+        autobiographical: [`the things I've built and what they mean`]
+      },
+      'Guardian': {
+        social: [`my role as protector and what it costs me`, `the balance between vigilance and trust`],
+        behavioral: [`why I feel compelled to shield others`]
+      },
+      'Explorer': {
+        autobiographical: [`the territories I've ventured into, physical and mental`, `my hunger for novelty and its consequences`],
+        behavioral: [`the restlessness that never lets me settle`]
+      },
+      'Scholar': {
+        behavioral: [`my systematic approach to understanding the world`, `the knowledge I've accumulated and what remains unknown`],
+        existential: [`whether understanding brings me closer to truth or further from it`]
+      }
+    }
+
+    // Combine base triggers with archetype-specific ones
+    let triggers = [...baseTriggers[type]]
+    const archetypeAdditions = archetypeSpecific[bot.persona.archetype]?.[type]
+    if (archetypeAdditions) {
+      triggers = [...triggers, ...archetypeAdditions]
+    }
+
+    return triggers[Math.floor(Math.random() * triggers.length)]
   }
 
   private createCycleSnapshot(day: number, events: string[]): SimulationCycle {
