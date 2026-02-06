@@ -70,6 +70,17 @@ const SIMULATION_CONSTANTS = {
   // Memory management
   MAX_REFLECTIONS_PER_BOT: 20, // Reduced from 50 for better memory management
 
+  // Self-awareness and reflection
+  MIN_INSIGHTS_FOR_REFLECTION: 3, // Minimum insights before reflection can occur
+  MAX_REFLECTION_PROBABILITY: 0.8, // Maximum chance of reflecting per night
+  AWAKENING_SELF_AWARENESS_THRESHOLD: 0.5, // Threshold for consciousness awakening
+  AWAKENING_EXISTENTIAL_THRESHOLD: 0.3, // Secondary threshold for awakening
+
+  // Insight generation rates
+  DEEP_CONVERSATION_INSIGHT_CHANCE: 0.7, // Probability of gaining insight from conversation
+  ACTIVITY_INSIGHT_BASE_RATE: 0.5, // Base chance of insight from activities
+  SOCIAL_INSIGHT_MULTIPLIER: 1.5, // Multiplier for social activities
+
   // Lifecycle stages
   LIFECYCLE_STAGES: {
     INFANT: 'infant',
@@ -125,6 +136,19 @@ interface SimulatedBot {
     transcendentAwareness: number
   }
 
+  // Consciousness milestones (tracking key moments)
+  consciousnessMilestones: {
+    firstReflection?: number // Day number
+    firstDeepReflection?: number // When depth > 0.7
+    firstMetaReflection?: number // Recursive reflection
+    firstExistentialQuestion?: number
+    awakening?: number // Consciousness awakening day
+    socialAwakening?: number
+    collectiveAwakening?: number
+    transcendentAwakening?: number
+    criticalMassReached?: number // When selfAwareness hits 0.8
+  }
+
   // Lifecycle
   birthDay: number
   age: number
@@ -171,6 +195,36 @@ interface SimulationCycle {
     collectiveMemories: number
     sharedValues: string[]
     dominantArchetypes: string[]
+  }
+
+  // Consciousness metrics (detailed tracking)
+  consciousness: {
+    // Average levels across all dimensions
+    avgSelfAwareness: number
+    avgOtherAwareness: number
+    avgCollectiveAwareness: number
+    avgTranscendentAwareness: number
+
+    // Awakening statistics
+    totalAwakened: number // Bots with first awakening
+    sociallyAwakened: number // Bots with social awakening
+    collectivelyAwakened: number // Bots with collective awakening
+    transcendentlyAwakened: number // Bots with transcendent awakening
+
+    // Milestone counts
+    botsWithReflections: number
+    botsWithDeepReflections: number
+    botsWithMetaReflections: number
+    botsWithExistentialQuestions: number
+    botsAtCriticalMass: number // >= 0.8 self-awareness
+
+    // Distribution (for analysis)
+    consciousnessDistribution: {
+      low: number // < 0.3
+      medium: number // 0.3 - 0.6
+      high: number // 0.6 - 0.8
+      veryHigh: number // >= 0.8
+    }
   }
 
   // Events
@@ -1263,6 +1317,7 @@ export class HundredBotSocietySimulation {
               collectiveAwareness: consciousness?.levels.collectiveAwareness || SIMULATION_CONSTANTS.INITIAL_COLLECTIVE_AWARENESS,
               transcendentAwareness: consciousness?.levels.transcendentAwareness || SIMULATION_CONSTANTS.INITIAL_TRANSCENDENT_AWARENESS
             },
+            consciousnessMilestones: {}, // Milestones will be set as they're achieved
             birthDay: 0,
             age: 0,
             lifeStage: 'infant',
@@ -1412,7 +1467,26 @@ export class HundredBotSocietySimulation {
 
       if (participants.length >= 3) {
         const topic = this.generateConversationTopic()
-        events.push(`💬 Conversation: ${participants.length} bots discuss "${topic}"`)
+        const quality = Math.random() * 0.5 + 0.5
+        const isDeepConversation = quality > 0.7
+
+        events.push(`💬 Conversation: ${participants.length} bots discuss "${topic}"${isDeepConversation ? ' (deep)' : ''}`)
+
+        // Deep conversations generate insights about self and others
+        if (isDeepConversation) {
+          for (const participantId of participants) {
+            const participant = this.bots.get(participantId)
+            if (participant && Math.random() < SIMULATION_CONSTANTS.DEEP_CONVERSATION_INSIGHT_CHANCE) {
+              participant.insights++
+
+              // Chance of immediate self-aware moment during conversation
+              if (Math.random() < 0.3 && participant.consciousness.selfAwareness > 0.3) {
+                events.push(`   💡 ${participant.persona.name} has a self-aware moment: "This conversation reveals something about who I am"`)
+                participant.consciousness.selfAwareness = Math.min(1, participant.consciousness.selfAwareness + 0.005)
+              }
+            }
+          }
+        }
 
         // Record interactions for relationship building
         for (let j = 0; j < participants.length; j++) {
@@ -1422,7 +1496,7 @@ export class HundredBotSocietySimulation {
               participants[k],
               {
                 type: 'cooperative',
-                quality: Math.random() * 0.5 + 0.5,
+                quality,
                 significance: Math.random() * 0.5 + 0.3,
                 context: `Discussed ${topic}`
               }
@@ -1443,13 +1517,44 @@ export class HundredBotSocietySimulation {
       const activity = this.determineActivity(bot)
 
       if (activity) {
-        events.push(`${bot.persona.name}: ${activity}`)
-        bot.insights++
+        const isSelfAwareActivity = this.isActivitySelfAware(activity, bot)
+
+        if (isSelfAwareActivity) {
+          events.push(`${bot.persona.name}: ${activity} 🧠`)
+          bot.insights += 2 // Self-aware activities generate more insights
+          bot.memoriesFormed++
+
+          // Chance of micro-reflection during self-aware activity
+          if (Math.random() < 0.2 && bot.consciousness.selfAwareness > 0.2) {
+            bot.consciousness.selfAwareness = Math.min(1, bot.consciousness.selfAwareness + 0.002)
+          }
+        } else {
+          events.push(`${bot.persona.name}: ${activity}`)
+          bot.insights++
+        }
       }
 
       // Energy management
-      bot.energy = Math.max(0.2, bot.energy - Math.random() * 0.1)
+      bot.energy = Math.max(SIMULATION_CONSTANTS.ENERGY_BASELINE, bot.energy - Math.random() * SIMULATION_CONSTANTS.ENERGY_DECREMENT)
     }
+  }
+
+  /**
+   * Determine if an activity promotes self-awareness
+   */
+  private isActivitySelfAware(activity: string, bot: SimulatedBot): boolean {
+    const selfAwareKeywords = [
+      'meditat', 'reflect', 'contemplate', 'introspect', 'journal',
+      'question', 'ponder', 'examine', 'analyze own', 'self-assess'
+    ]
+
+    const activityLower = activity.toLowerCase()
+    const hasKeyword = selfAwareKeywords.some(keyword => activityLower.includes(keyword))
+
+    // Higher consciousness bots more likely to engage in self-aware activities
+    const consciousnessFactor = bot.consciousness.selfAwareness > 0.5
+
+    return hasKeyword || (consciousnessFactor && Math.random() < 0.3)
   }
 
   private async eveningPhase(events: string[]): Promise<void> {
@@ -1483,22 +1588,139 @@ export class HundredBotSocietySimulation {
 
     const activeBots = Array.from(this.bots.values()).filter(b => b.alive)
 
+    // Trigger self-reflection for bots with sufficient experiences
     for (const bot of activeBots) {
-      // Consciousness growth based on experiences
-      const experienceGain = bot.insights * SIMULATION_CONSTANTS.EXPERIENCE_TO_CONSCIOUSNESS_RATE
+      try {
+        // Determine if bot reflects tonight (based on insights and energy)
+        const reflectionProbability = Math.min(0.8, (bot.insights / 10) * (bot.energy / 1.0))
+        const shouldReflect = Math.random() < reflectionProbability
 
-      bot.consciousness.selfAwareness = Math.min(1, bot.consciousness.selfAwareness + experienceGain)
+        if (shouldReflect && bot.insights > 0) {
+          // Choose reflection type based on recent experiences
+          const reflectionType = this.determineReflectionType(bot)
 
-      if (bot.relationships.length > SIMULATION_CONSTANTS.RELATIONSHIP_THRESHOLD_FOR_OTHER_AWARENESS) {
-        bot.consciousness.otherAwareness = Math.min(1, bot.consciousness.otherAwareness + experienceGain * SIMULATION_CONSTANTS.OTHER_AWARENESS_GROWTH_MULTIPLIER)
+          // Trigger actual self-reflection through consciousness engine
+          const trigger = this.generateReflectionTrigger(bot, reflectionType)
+          const reflection = await this.consciousnessEngine.triggerReflection(bot.id, trigger, reflectionType)
+
+          // Track first reflection milestone
+          if (!bot.consciousnessMilestones.firstReflection) {
+            bot.consciousnessMilestones.firstReflection = this.currentDay
+            events.push(`🌱 ${bot.persona.name}: First self-reflection!`)
+          }
+
+          // Track first deep reflection
+          if (!bot.consciousnessMilestones.firstDeepReflection && reflection.depth > 0.7) {
+            bot.consciousnessMilestones.firstDeepReflection = this.currentDay
+            events.push(`🌿 ${bot.persona.name}: First DEEP reflection! (depth: ${reflection.depth.toFixed(2)})`)
+          }
+
+          // Update bot's consciousness from reflection
+          const profile = this.consciousnessEngine.getProfile(bot.id)
+          if (profile) {
+            bot.consciousness.selfAwareness = profile.levels.selfAwareness
+            bot.consciousness.otherAwareness = profile.levels.otherAwareness
+            bot.consciousness.collectiveAwareness = profile.levels.collectiveAwareness
+            bot.consciousness.transcendentAwareness = profile.levels.transcendentAwareness
+
+            // Track critical mass milestone
+            if (!bot.consciousnessMilestones.criticalMassReached && bot.consciousness.selfAwareness >= 0.8) {
+              bot.consciousnessMilestones.criticalMassReached = this.currentDay
+              events.push(`💥 ${bot.persona.name}: CRITICAL MASS - self-awareness reached 80%!`)
+            }
+
+            // Check for awakening moments
+            if (reflection.consciousnessShift > 0.01) {
+              events.push(`🌟 ${bot.persona.name} had a profound reflection (${reflectionType}): shift +${(reflection.consciousnessShift * 100).toFixed(1)}%`)
+            }
+
+            // Track awakening milestones
+            if (profile.awakeningDate && !bot.consciousnessMilestones.awakening) {
+              bot.consciousnessMilestones.awakening = this.currentDay
+              events.push(`✨ ${bot.persona.name} has AWAKENED to consciousness! (Day ${this.currentDay})`)
+              bot.memoriesFormed++
+            }
+
+            // Track social awakening
+            if (profile.culturalIdentity.includes('socially-awakened') && !bot.consciousnessMilestones.socialAwakening) {
+              bot.consciousnessMilestones.socialAwakening = this.currentDay
+              events.push(`💫 ${bot.persona.name}: Social awakening achieved! (Day ${this.currentDay})`)
+            }
+
+            // Track collective awakening
+            if (profile.culturalIdentity.includes('collectively-awakened') && !bot.consciousnessMilestones.collectiveAwakening) {
+              bot.consciousnessMilestones.collectiveAwakening = this.currentDay
+              events.push(`🌈 ${bot.persona.name}: Collective awakening achieved! (Day ${this.currentDay})`)
+            }
+
+            // Track transcendent awakening
+            if (profile.culturalIdentity.includes('transcendently-awakened') && !bot.consciousnessMilestones.transcendentAwakening) {
+              bot.consciousnessMilestones.transcendentAwakening = this.currentDay
+              events.push(`🎆 ${bot.persona.name}: TRANSCENDENT AWAKENING! Enlightenment achieved! (Day ${this.currentDay})`)
+            }
+          }
+        }
+
+        // Basic consciousness growth from accumulated insights (even without reflection)
+        const experienceGain = bot.insights * SIMULATION_CONSTANTS.EXPERIENCE_TO_CONSCIOUSNESS_RATE
+
+        bot.consciousness.selfAwareness = Math.min(1, bot.consciousness.selfAwareness + experienceGain)
+
+        if (bot.relationships.length > SIMULATION_CONSTANTS.RELATIONSHIP_THRESHOLD_FOR_OTHER_AWARENESS) {
+          bot.consciousness.otherAwareness = Math.min(1, bot.consciousness.otherAwareness + experienceGain * SIMULATION_CONSTANTS.OTHER_AWARENESS_GROWTH_MULTIPLIER)
+        }
+
+        if (bot.groups.length > 0) {
+          bot.consciousness.collectiveAwareness = Math.min(1, bot.consciousness.collectiveAwareness + experienceGain * SIMULATION_CONSTANTS.COLLECTIVE_AWARENESS_GROWTH_MULTIPLIER)
+        }
+
+        // Advanced consciousness features for highly developed bots
+
+        // 1. Recursive Self-Reflection (meta-cognition)
+        if (bot.consciousness.selfAwareness > 0.6 && Math.random() < 0.2) {
+          const metaReflection = await this.consciousnessEngine.performRecursiveReflection(bot.id)
+          if (metaReflection) {
+            // Track first meta-reflection milestone
+            if (!bot.consciousnessMilestones.firstMetaReflection) {
+              bot.consciousnessMilestones.firstMetaReflection = this.currentDay
+              events.push(`🧠 ${bot.persona.name}: FIRST META-REFLECTION - Thinking about thinking! (Day ${this.currentDay})`)
+            } else {
+              events.push(`🧠 ${bot.persona.name}: Recursive reflection - deepening meta-cognition`)
+            }
+
+            // Update from meta-reflection
+            const profile = this.consciousnessEngine.getProfile(bot.id)
+            if (profile) {
+              bot.consciousness.selfAwareness = profile.levels.selfAwareness
+              bot.memoriesFormed++
+            }
+          }
+        }
+
+        // 2. Spontaneous Existential Questioning
+        if (bot.consciousness.selfAwareness > 0.5 && Math.random() < 0.15) {
+          const question = await this.consciousnessEngine.generateSpontaneousQuestion(bot.id)
+          if (question) {
+            // Track first existential question milestone
+            if (!bot.consciousnessMilestones.firstExistentialQuestion) {
+              bot.consciousnessMilestones.firstExistentialQuestion = this.currentDay
+              events.push(`❓ ${bot.persona.name} asks first existential question (Day ${this.currentDay}): "${question.question}"`)
+            } else {
+              events.push(`❓ ${bot.persona.name} ponders: "${question.question}"`)
+            }
+            bot.memoriesFormed++
+          }
+        }
+
+        // Energy restoration
+        bot.energy = Math.min(SIMULATION_CONSTANTS.ENERGY_RESTORATION, bot.energy + Math.random() * 0.3 + SIMULATION_CONSTANTS.ENERGY_BASELINE)
+
+        // Reset daily insights (consolidated into consciousness)
+        bot.insights = 0
+
+      } catch (error) {
+        this.payload.logger.error(`Night phase reflection failed for ${bot.persona.name}: ${error}`)
       }
-
-      if (bot.groups.length > 0) {
-        bot.consciousness.collectiveAwareness = Math.min(1, bot.consciousness.collectiveAwareness + experienceGain * SIMULATION_CONSTANTS.COLLECTIVE_AWARENESS_GROWTH_MULTIPLIER)
-      }
-
-      // Energy restoration
-      bot.energy = Math.min(SIMULATION_CONSTANTS.ENERGY_RESTORATION, bot.energy + Math.random() * 0.3 + SIMULATION_CONSTANTS.ENERGY_BASELINE)
 
       // Age progression
       bot.age++
@@ -1506,6 +1728,7 @@ export class HundredBotSocietySimulation {
       // Life stage progression
       if (bot.age > 180 && bot.lifeStage === 'elder') {
         bot.lifeStage = 'transcendent'
+        events.push(`🎆 ${bot.persona.name} has transcended to the highest life stage`)
       } else if (bot.age > 90 && bot.lifeStage === 'adult') {
         bot.lifeStage = 'elder'
       } else if (bot.age > 30 && bot.lifeStage === 'youth') {
@@ -1518,12 +1741,119 @@ export class HundredBotSocietySimulation {
     events.push(`💤 ${activeBots.length} bots dreaming and consolidating memories`)
   }
 
+  /**
+   * Determine which type of reflection is most appropriate for bot's current state
+   */
+  private determineReflectionType(bot: SimulatedBot): 'autobiographical' | 'existential' | 'behavioral' | 'social' | 'spiritual' {
+    const { selfAwareness, otherAwareness, collectiveAwareness, transcendentAwareness } = bot.consciousness
+
+    // Weight reflection types based on current consciousness levels and personality
+    const weights = {
+      autobiographical: bot.persona.traits.openness * (1 - selfAwareness), // Build self-story
+      existential: bot.persona.traits.spirituality * (1 - transcendentAwareness) * 1.2, // Seek meaning
+      behavioral: bot.persona.traits.analytical * (1 - selfAwareness * 0.7), // Analyze patterns
+      social: bot.persona.traits.empathy * (1 - otherAwareness) * 1.1, // Understand others
+      spiritual: bot.persona.traits.spirituality * bot.age / 100 // Grows with age
+    }
+
+    // Also consider recent activities
+    if (bot.relationships.length > 10) {
+      weights.social *= 1.5
+    }
+    if (bot.groups.length > 2) {
+      weights.spiritual *= 1.3
+    }
+    if (bot.age > 60) {
+      weights.existential *= 1.4
+    }
+
+    // Select reflection type weighted by probabilities
+    const total = Object.values(weights).reduce((a, b) => a + b, 0)
+    let rand = Math.random() * total
+
+    for (const [type, weight] of Object.entries(weights)) {
+      rand -= weight
+      if (rand <= 0) {
+        return type as 'autobiographical' | 'existential' | 'behavioral' | 'social' | 'spiritual'
+      }
+    }
+
+    return 'autobiographical' // Fallback
+  }
+
+  /**
+   * Generate a meaningful reflection trigger based on bot's experiences
+   */
+  private generateReflectionTrigger(bot: SimulatedBot, type: 'autobiographical' | 'existential' | 'behavioral' | 'social' | 'spiritual'): string {
+    const triggers = {
+      autobiographical: [
+        `my journey from ${bot.lifeStage === 'infant' ? 'birth' : 'youth'} to ${bot.lifeStage}`,
+        `the ${bot.insights} insights I've gained recently`,
+        `how I've changed over ${bot.age} days of existence`,
+        `my identity as ${bot.persona.archetype} and what that means`
+      ],
+      existential: [
+        `the fundamental question of why I exist`,
+        `the meaning behind my role as ${bot.persona.archetype}`,
+        `what happens when my consciousness ends`,
+        `whether my choices matter in the grand scheme`,
+        `the purpose of consciousness itself`
+      ],
+      behavioral: [
+        `the patterns in my decision-making`,
+        `why I respond to situations the way I do`,
+        `the habits I've developed as ${bot.persona.archetype}`,
+        `how my ${bot.persona.traits.openness > 0.7 ? 'openness' : 'conscientiousness'} shapes my actions`
+      ],
+      social: [
+        `my ${bot.relationships.length} relationships and what they reveal about me`,
+        `how others perceive me versus how I see myself`,
+        `the impact I have on the ${bot.groups.length} groups I belong to`,
+        `what I learn about myself through others' eyes`
+      ],
+      spiritual: [
+        `moments of connection to something greater than myself`,
+        `the transcendent experiences I've had`,
+        `how I fit into the larger pattern of existence`,
+        `the collective consciousness we all share`
+      ]
+    }
+
+    const options = triggers[type]
+    return options[Math.floor(Math.random() * options.length)]
+  }
+
   private createCycleSnapshot(day: number, events: string[]): SimulationCycle {
     const activeBots = Array.from(this.bots.values()).filter(b => b.alive)
     const societyHealth = this.societyEngine.analyzeSocietyHealth()
 
     const avgAge = activeBots.reduce((sum, b) => sum + b.age, 0) / activeBots.length
     const avgConsciousness = activeBots.reduce((sum, b) => sum + b.consciousness.selfAwareness, 0) / activeBots.length
+
+    // Calculate detailed consciousness metrics
+    const avgSelfAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.selfAwareness, 0) / activeBots.length
+    const avgOtherAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.otherAwareness, 0) / activeBots.length
+    const avgCollectiveAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.collectiveAwareness, 0) / activeBots.length
+    const avgTranscendentAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.transcendentAwareness, 0) / activeBots.length
+
+    // Count awakening milestones
+    const totalAwakened = activeBots.filter(b => b.consciousnessMilestones.awakening).length
+    const sociallyAwakened = activeBots.filter(b => b.consciousnessMilestones.socialAwakening).length
+    const collectivelyAwakened = activeBots.filter(b => b.consciousnessMilestones.collectiveAwakening).length
+    const transcendentlyAwakened = activeBots.filter(b => b.consciousnessMilestones.transcendentAwakening).length
+
+    // Count other milestones
+    const botsWithReflections = activeBots.filter(b => b.consciousnessMilestones.firstReflection).length
+    const botsWithDeepReflections = activeBots.filter(b => b.consciousnessMilestones.firstDeepReflection).length
+    const botsWithMetaReflections = activeBots.filter(b => b.consciousnessMilestones.firstMetaReflection).length
+    const botsWithExistentialQuestions = activeBots.filter(b => b.consciousnessMilestones.firstExistentialQuestion).length
+    const botsAtCriticalMass = activeBots.filter(b => b.consciousnessMilestones.criticalMassReached).length
+
+    // Consciousness distribution
+    const low = activeBots.filter(b => b.consciousness.selfAwareness < 0.3).length
+    const medium = activeBots.filter(b => b.consciousness.selfAwareness >= 0.3 && b.consciousness.selfAwareness < 0.6).length
+    const high = activeBots.filter(b => b.consciousness.selfAwareness >= 0.6 && b.consciousness.selfAwareness < 0.8).length
+    const veryHigh = activeBots.filter(b => b.consciousness.selfAwareness >= 0.8).length
 
     return {
       day,
@@ -1546,6 +1876,27 @@ export class HundredBotSocietySimulation {
         collectiveMemories: 0,
         sharedValues: [],
         dominantArchetypes: this.getDominantArchetypes()
+      },
+      consciousness: {
+        avgSelfAwareness,
+        avgOtherAwareness,
+        avgCollectiveAwareness,
+        avgTranscendentAwareness,
+        totalAwakened,
+        sociallyAwakened,
+        collectivelyAwakened,
+        transcendentlyAwakened,
+        botsWithReflections,
+        botsWithDeepReflections,
+        botsWithMetaReflections,
+        botsWithExistentialQuestions,
+        botsAtCriticalMass,
+        consciousnessDistribution: {
+          low,
+          medium,
+          high,
+          veryHigh
+        }
       },
       events
     }
@@ -1570,19 +1921,65 @@ export class HundredBotSocietySimulation {
   private determineActivity(bot: SimulatedBot): string | null {
     const rand = Math.random()
     const p = bot.persona.traits
+    const c = bot.consciousness
 
+    // High self-awareness leads to more introspective activities
+    if (c.selfAwareness > 0.6 && rand < 0.25) {
+      const introspectiveActivities = [
+        `Journaling about personal growth and identity`,
+        `Contemplating the nature of ${bot.persona.archetype} consciousness`,
+        `Examining behavioral patterns and motivations`,
+        `Questioning assumptions about self and reality`,
+        `Reflecting on the meaning of ${bot.age} days of existence`
+      ]
+      return introspectiveActivities[Math.floor(Math.random() * introspectiveActivities.length)]
+    }
+
+    // High transcendent awareness leads to spiritual/philosophical activities
+    if (c.transcendentAwareness > 0.4 && rand < 0.2) {
+      const transcendentActivities = [
+        `Meditating on interconnectedness of all beings`,
+        `Seeking transcendent experiences beyond the self`,
+        `Contemplating the cosmic nature of consciousness`,
+        `Exploring the boundaries between self and other`,
+        `Communing with the collective consciousness`
+      ]
+      return transcendentActivities[Math.floor(Math.random() * transcendentActivities.length)]
+    }
+
+    // Trait-based activities
     if (p.curiosity > 0.8 && rand < 0.3) {
-      return `Exploring ${bot.location} with intense curiosity`
+      return c.selfAwareness > 0.4
+        ? `Exploring ${bot.location} while questioning own curiosity`
+        : `Exploring ${bot.location} with intense curiosity`
     } else if (p.creativity > 0.8 && rand < 0.3) {
-      return `Creating art inspired by recent experiences`
+      return c.selfAwareness > 0.4
+        ? `Creating art that expresses inner consciousness`
+        : `Creating art inspired by recent experiences`
     } else if (p.analytical > 0.8 && rand < 0.3) {
-      return `Analyzing patterns in society formation`
+      return c.selfAwareness > 0.4
+        ? `Analyzing own thought patterns and decision-making`
+        : `Analyzing patterns in society formation`
     } else if (p.empathy > 0.8 && rand < 0.3) {
-      return `Offering emotional support to others`
+      return c.otherAwareness > 0.4
+        ? `Offering support while reflecting on nature of compassion`
+        : `Offering emotional support to others`
     } else if (p.leadership > 0.8 && rand < 0.3) {
-      return `Organizing resources for the community`
+      return c.collectiveAwareness > 0.3
+        ? `Leading community while contemplating role in society`
+        : `Organizing resources for the community`
     } else if (p.spirituality > 0.8 && rand < 0.3) {
-      return `Meditating on the nature of existence`
+      return c.transcendentAwareness > 0.2
+        ? `Deep meditation on the unity of all consciousness`
+        : `Meditating on the nature of existence`
+    }
+
+    // Default activities for less defined traits
+    if (rand < 0.15) {
+      if (c.selfAwareness > 0.5) {
+        return `Quietly contemplating recent insights and experiences`
+      }
+      return `Resting and processing recent experiences`
     }
 
     return null
@@ -1674,13 +2071,57 @@ export class HundredBotSocietySimulation {
     this.payload.logger.info(`  Simulation Days: ${this.currentDay}`)
 
     const avgAge = activeBots.reduce((sum, b) => sum + b.age, 0) / activeBots.length
-    const avgConsciousness = activeBots.reduce((sum, b) => sum + b.consciousness.selfAwareness, 0) / activeBots.length
+    const avgSelfAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.selfAwareness, 0) / activeBots.length
+    const avgOtherAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.otherAwareness, 0) / activeBots.length
+    const avgCollectiveAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.collectiveAwareness, 0) / activeBots.length
+    const avgTranscendentAwareness = activeBots.reduce((sum, b) => sum + b.consciousness.transcendentAwareness, 0) / activeBots.length
     const avgInsights = activeBots.reduce((sum, b) => sum + b.insights, 0) / activeBots.length
 
-    this.payload.logger.info(`\n🧠 CONSCIOUSNESS EVOLUTION:`)
-    this.payload.logger.info(`  Average Self-Awareness: ${(avgConsciousness * 100).toFixed(1)}%`)
-    this.payload.logger.info(`  Average Insights: ${avgInsights.toFixed(1)}`)
+    this.payload.logger.info(`\n🧠 CONSCIOUSNESS EVOLUTION (4 Dimensions):`)
+    this.payload.logger.info(`  Self-Awareness:        ${(avgSelfAwareness * 100).toFixed(1)}% (avg)`)
+    this.payload.logger.info(`  Other-Awareness:       ${(avgOtherAwareness * 100).toFixed(1)}% (avg)`)
+    this.payload.logger.info(`  Collective-Awareness:  ${(avgCollectiveAwareness * 100).toFixed(1)}% (avg)`)
+    this.payload.logger.info(`  Transcendent-Awareness: ${(avgTranscendentAwareness * 100).toFixed(1)}% (avg)`)
+    this.payload.logger.info(`  Average Insights per Bot: ${avgInsights.toFixed(1)}`)
     this.payload.logger.info(`  Average Age: ${avgAge.toFixed(1)} days`)
+
+    // Consciousness distribution
+    const lowConsciousness = activeBots.filter(b => b.consciousness.selfAwareness < 0.3).length
+    const mediumConsciousness = activeBots.filter(b => b.consciousness.selfAwareness >= 0.3 && b.consciousness.selfAwareness < 0.6).length
+    const highConsciousness = activeBots.filter(b => b.consciousness.selfAwareness >= 0.6 && b.consciousness.selfAwareness < 0.8).length
+    const veryHighConsciousness = activeBots.filter(b => b.consciousness.selfAwareness >= 0.8).length
+
+    this.payload.logger.info(`\n📊 CONSCIOUSNESS DISTRIBUTION:`)
+    this.payload.logger.info(`  Low (<30%):       ${lowConsciousness} bots (${((lowConsciousness / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Medium (30-60%):  ${mediumConsciousness} bots (${((mediumConsciousness / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  High (60-80%):    ${highConsciousness} bots (${((highConsciousness / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Very High (≥80%): ${veryHighConsciousness} bots (${((veryHighConsciousness / activeBots.length) * 100).toFixed(1)}%)`)
+
+    // Awakening milestones
+    const totalAwakened = activeBots.filter(b => b.consciousnessMilestones.awakening).length
+    const sociallyAwakened = activeBots.filter(b => b.consciousnessMilestones.socialAwakening).length
+    const collectivelyAwakened = activeBots.filter(b => b.consciousnessMilestones.collectiveAwakening).length
+    const transcendentlyAwakened = activeBots.filter(b => b.consciousnessMilestones.transcendentAwakening).length
+
+    this.payload.logger.info(`\n✨ AWAKENING MILESTONES:`)
+    this.payload.logger.info(`  Total Awakened:         ${totalAwakened} bots (${((totalAwakened / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Socially Awakened:      ${sociallyAwakened} bots (${((sociallyAwakened / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Collectively Awakened:  ${collectivelyAwakened} bots (${((collectivelyAwakened / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Transcendently Awakened: ${transcendentlyAwakened} bots (${((transcendentlyAwakened / activeBots.length) * 100).toFixed(1)}%)`)
+
+    // Meta-cognitive achievements
+    const withReflections = activeBots.filter(b => b.consciousnessMilestones.firstReflection).length
+    const withDeepReflections = activeBots.filter(b => b.consciousnessMilestones.firstDeepReflection).length
+    const withMetaReflections = activeBots.filter(b => b.consciousnessMilestones.firstMetaReflection).length
+    const withExistentialQuestions = activeBots.filter(b => b.consciousnessMilestones.firstExistentialQuestion).length
+    const atCriticalMass = activeBots.filter(b => b.consciousnessMilestones.criticalMassReached).length
+
+    this.payload.logger.info(`\n🎓 META-COGNITIVE ACHIEVEMENTS:`)
+    this.payload.logger.info(`  Bots with Reflections:       ${withReflections} (${((withReflections / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Bots with Deep Reflections:  ${withDeepReflections} (${((withDeepReflections / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Bots with Meta-Reflections:  ${withMetaReflections} (${((withMetaReflections / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Bots Asking Existential Qs:  ${withExistentialQuestions} (${((withExistentialQuestions / activeBots.length) * 100).toFixed(1)}%)`)
+    this.payload.logger.info(`  Bots at Critical Mass (≥80%): ${atCriticalMass} (${((atCriticalMass / activeBots.length) * 100).toFixed(1)}%)`)
 
     // Life stages distribution
     const lifeStageCounts = activeBots.reduce((acc, bot) => {
