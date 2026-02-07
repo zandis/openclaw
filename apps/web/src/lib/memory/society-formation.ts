@@ -14,6 +14,9 @@
  */
 
 import type { Payload } from 'payload'
+import { SOCIAL_THRESHOLDS, SOCIAL_DYNAMICS } from '../simulation/simulation-config'
+import { EventBus, EventBuilder } from '../simulation/event-bus'
+import { buildNetworkGraph, detectCommunities, calculateBridgeScore, type BridgeAnalysis } from '../simulation/network-analysis'
 
 export interface BotRelationship {
   id: string
@@ -147,13 +150,15 @@ export class SocietyFormationEngine {
   private socialNetworks: Map<string, SocialNetwork>
   private groups: Map<string, SocialGroup>
   private leadershipProfiles: Map<string, LeadershipProfile>
+  private eventBus: EventBus | null
 
-  constructor(payload: Payload) {
+  constructor(payload: Payload, eventBus?: EventBus) {
     this.payload = payload
     this.relationships = new Map()
     this.socialNetworks = new Map()
     this.groups = new Map()
     this.leadershipProfiles = new Map()
+    this.eventBus = eventBus || null
   }
 
   /**
@@ -247,6 +252,15 @@ export class SocietyFormationEngine {
       }
 
       this.payload.logger.info(`New relationship forming: ${bot1} ↔ ${bot2}`)
+
+      // Emit relationship formed event
+      if (this.eventBus) {
+        await this.eventBus.emit(EventBuilder.relationshipFormed(bot1, 0, {
+          partnerId: bot2,
+          relationshipType: 'acquaintance',
+          strength: 0.1
+        }))
+      }
     }
 
     // Update based on interaction
@@ -308,15 +322,21 @@ export class SocietyFormationEngine {
    * Determine relationship type from patterns
    */
   private determineRelationshipType(rel: BotRelationship): BotRelationship['type'] {
-    if (rel.affection > 0.7 && rel.trust > 0.7 && rel.conflictLevel < 0.3) {
+    if (rel.affection > SOCIAL_THRESHOLDS.FRIENDSHIP_AFFECTION_MIN &&
+        rel.trust > SOCIAL_THRESHOLDS.FRIENDSHIP_TRUST_MIN &&
+        rel.conflictLevel < SOCIAL_THRESHOLDS.FRIENDSHIP_CONFLICT_MAX) {
       return 'friendship'
-    } else if (rel.respect > 0.8 && rel.influenceBalance > 0.5) {
+    } else if (rel.respect > SOCIAL_THRESHOLDS.MENTORSHIP_RESPECT_MIN &&
+               rel.influenceBalance > SOCIAL_THRESHOLDS.MENTORSHIP_INFLUENCE_BALANCE_MIN) {
       return 'mentorship'
-    } else if (rel.conflictLevel > 0.6 && rel.cooperationLevel < 0.3) {
+    } else if (rel.conflictLevel > SOCIAL_THRESHOLDS.RIVALRY_CONFLICT_MIN &&
+               rel.cooperationLevel < SOCIAL_THRESHOLDS.RIVALRY_COOPERATION_MAX) {
       return 'rivalry'
-    } else if (rel.cooperationLevel > 0.7 && rel.interdependence > 0.5) {
+    } else if (rel.cooperationLevel > SOCIAL_THRESHOLDS.PARTNERSHIP_COOPERATION_MIN &&
+               rel.interdependence > SOCIAL_THRESHOLDS.PARTNERSHIP_INTERDEPENDENCE_MIN) {
       return 'partnership'
-    } else if (rel.cooperationLevel > 0.6 && rel.trust > 0.6) {
+    } else if (rel.cooperationLevel > SOCIAL_THRESHOLDS.ALLIANCE_COOPERATION_MIN &&
+               rel.trust > SOCIAL_THRESHOLDS.ALLIANCE_TRUST_MIN) {
       return 'alliance'
     } else {
       return 'acquaintance'
@@ -360,17 +380,39 @@ export class SocietyFormationEngine {
     // Centrality: how many strong connections
     const strongConnections = network.relationships.filter(relId => {
       const rel = this.relationships.get(relId)
-      return rel && rel.strength > 0.5
+      return rel && rel.strength > SOCIAL_THRESHOLDS.STRONG_RELATIONSHIP_THRESHOLD
     }).length
 
-    network.centrality = Math.min(1, strongConnections / 10) // Max at 10 strong connections
+    network.centrality = Math.min(1, strongConnections / SOCIAL_DYNAMICS.CENTRALITY_MAX_CONNECTIONS) // Max at 10 strong connections
 
     // Influence: combination of centrality, reputation, and competence
-    network.influence = (network.centrality + network.reputation * 0.5 + 1 + network.competence) / 3
+    network.influence = (network.centrality + network.reputation * SOCIAL_DYNAMICS.INFLUENCE_REPUTATION_WEIGHT + 1 + network.competence) / 3
 
-    // Bridge score: TODO - requires analyzing if bot connects different clusters
-    // For now, simplified
-    network.bridgeScore = network.relationships.length > 5 ? 0.5 : 0.3
+    // Bridge score: Calculate using network analysis (resolves TODO!)
+    const bridgeAnalysis = this.calculateRealBridgeScore(botId)
+    network.bridgeScore = bridgeAnalysis.bridgeScore
+  }
+
+  /**
+   * Calculate real bridge score using community detection
+   * Resolves TODO from line 371-373
+   */
+  private calculateRealBridgeScore(botId: string): BridgeAnalysis {
+    // Build network graph from all relationships
+    const relationshipsArray = Array.from(this.relationships.values()).map(rel => ({
+      bot1: rel.bot1,
+      bot2: rel.bot2,
+      strength: rel.strength
+    }))
+
+    // Build graph
+    const graph = buildNetworkGraph(relationshipsArray)
+
+    // Detect communities using label propagation
+    const communities = detectCommunities(graph, SOCIAL_DYNAMICS.COMMUNITY_DETECTION_MAX_ITERATIONS)
+
+    // Calculate bridge score for this bot
+    return calculateBridgeScore(botId, graph, communities)
   }
 
   /**
@@ -430,6 +472,16 @@ export class SocietyFormationEngine {
       `New social group formed: "${groupData.name}" (${groupData.type}) ` +
       `by ${founders.length} founders`
     )
+
+    // Emit group created event
+    if (this.eventBus) {
+      await this.eventBus.emit(EventBuilder.groupCreated(founders[0], 0, {
+        groupId,
+        groupName: groupData.name,
+        groupType: groupData.type,
+        founderIds: founders
+      }))
+    }
 
     // Create collective memory of founding
     await this.payload.create({
@@ -726,9 +778,9 @@ export class SocietyFormationEngine {
  */
 let societyFormationEngine: SocietyFormationEngine | null = null
 
-export function getSocietyFormationEngine(payload: Payload): SocietyFormationEngine {
+export function getSocietyFormationEngine(payload: Payload, eventBus?: EventBus): SocietyFormationEngine {
   if (!societyFormationEngine) {
-    societyFormationEngine = new SocietyFormationEngine(payload)
+    societyFormationEngine = new SocietyFormationEngine(payload, eventBus)
   }
   return societyFormationEngine
 }

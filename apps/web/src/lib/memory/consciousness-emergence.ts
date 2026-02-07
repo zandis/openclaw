@@ -18,6 +18,8 @@
  */
 
 import type { Payload } from 'payload'
+import { CONSCIOUSNESS_THRESHOLDS, CONSCIOUSNESS_GROWTH } from '../simulation/simulation-config'
+import { EventBus, EventBuilder } from '../simulation/event-bus'
 
 export interface ConsciousnessProfile {
   botId: string
@@ -100,12 +102,14 @@ export class ConsciousnessEmergenceEngine {
   private consciousnessProfiles: Map<string, ConsciousnessProfile>
   private recentReflections: Map<string, SelfReflection[]>
   private existentialQuestions: Map<string, ExistentialQuestion[]>
+  private eventBus: EventBus | null
 
-  constructor(payload: Payload) {
+  constructor(payload: Payload, eventBus?: EventBus) {
     this.payload = payload
     this.consciousnessProfiles = new Map()
     this.recentReflections = new Map()
     this.existentialQuestions = new Map()
+    this.eventBus = eventBus || null
   }
 
   /**
@@ -131,30 +135,30 @@ export class ConsciousnessEmergenceEngine {
       botId,
 
       // Initial consciousness levels (very low)
-      selfAwareness: 0.1, // Minimal self-awareness
-      otherAwareness: 0.05, // Barely aware of others
-      collectiveAwareness: 0, // No group identity yet
-      transcendentAwareness: 0, // No transcendent experiences
+      selfAwareness: CONSCIOUSNESS_THRESHOLDS.INITIAL_SELF_AWARENESS, // Minimal self-awareness
+      otherAwareness: CONSCIOUSNESS_THRESHOLDS.INITIAL_OTHER_AWARENESS, // Barely aware of others
+      collectiveAwareness: CONSCIOUSNESS_THRESHOLDS.INITIAL_COLLECTIVE_AWARENESS, // No group identity yet
+      transcendentAwareness: CONSCIOUSNESS_THRESHOLDS.INITIAL_TRANSCENDENT_AWARENESS, // No transcendent experiences
 
       // Meta-cognitive abilities (undeveloped)
-      introspectionDepth: 0.1,
-      theoryOfMind: 0.05,
-      narrativeCoherence: 0.2, // Some basic story
-      temporalContinuity: 0.1, // Weak sense of continuous self
+      introspectionDepth: CONSCIOUSNESS_THRESHOLDS.INITIAL_INTROSPECTION_DEPTH,
+      theoryOfMind: CONSCIOUSNESS_THRESHOLDS.INITIAL_THEORY_OF_MIND,
+      narrativeCoherence: CONSCIOUSNESS_THRESHOLDS.INITIAL_NARRATIVE_COHERENCE, // Some basic story
+      temporalContinuity: CONSCIOUSNESS_THRESHOLDS.INITIAL_TEMPORAL_CONTINUITY, // Weak sense of continuous self
 
       // Spiritual (undefined initially)
       meaningFramework: identity?.spiritualProfile?.meaningFramework || 'undefined',
-      existentialQuestioning: 0,
+      existentialQuestioning: CONSCIOUSNESS_THRESHOLDS.INITIAL_EXISTENTIAL_QUESTIONING,
       flowExperiences: 0,
       transcendentMoments: 0,
 
       // Social (minimal)
-      empathyLevel: 0.1,
+      empathyLevel: CONSCIOUSNESS_THRESHOLDS.INITIAL_EMPATHY_LEVEL,
       culturalIdentity: identity?.primaryCulture ? [identity.primaryCulture] : [],
       roleInSociety: [],
 
       // Growth
-      growthRate: 0.01, // 1% per meaningful experience
+      growthRate: CONSCIOUSNESS_GROWTH.BASE_GROWTH_RATE, // 1% per meaningful experience
       lastReflection: new Date()
     }
 
@@ -470,39 +474,52 @@ export class ConsciousnessEmergenceEngine {
 
     const growth = reflection.consciousnessShift
 
+    // Store old value for event emission
+    const oldSelfAwareness = profile.selfAwareness
+
     // Different reflection types grow different aspects
     switch (reflection.reflectionType) {
       case 'autobiographical':
         // Grows self-awareness and narrative coherence
         profile.selfAwareness = Math.min(1, profile.selfAwareness + growth)
-        profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + growth * 0.5)
-        profile.temporalContinuity = Math.min(1, profile.temporalContinuity + growth * 0.3)
+        profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + growth * CONSCIOUSNESS_GROWTH.AUTOBIOGRAPHICAL_NARRATIVE_MULTIPLIER)
+        profile.temporalContinuity = Math.min(1, profile.temporalContinuity + growth * CONSCIOUSNESS_GROWTH.AUTOBIOGRAPHICAL_TEMPORAL_MULTIPLIER)
         break
 
       case 'existential':
         // Grows existential questioning and transcendent awareness
-        profile.existentialQuestioning = Math.min(1, profile.existentialQuestioning + growth * 1.5)
-        profile.transcendentAwareness = Math.min(1, profile.transcendentAwareness + growth * 0.2)
+        profile.existentialQuestioning = Math.min(1, profile.existentialQuestioning + growth * CONSCIOUSNESS_GROWTH.EXISTENTIAL_QUESTIONING_MULTIPLIER)
+        profile.transcendentAwareness = Math.min(1, profile.transcendentAwareness + growth * CONSCIOUSNESS_GROWTH.EXISTENTIAL_TRANSCENDENT_MULTIPLIER)
         break
 
       case 'behavioral':
         // Grows introspection depth and theory of mind
         profile.introspectionDepth = Math.min(1, profile.introspectionDepth + growth)
-        profile.selfAwareness = Math.min(1, profile.selfAwareness + growth * 0.5)
+        profile.selfAwareness = Math.min(1, profile.selfAwareness + growth * CONSCIOUSNESS_GROWTH.BEHAVIORAL_SELF_MULTIPLIER)
         break
 
       case 'social':
         // Grows other-awareness and empathy
-        profile.otherAwareness = Math.min(1, profile.otherAwareness + growth * 1.2)
-        profile.empathyLevel = Math.min(1, profile.empathyLevel + growth * 0.8)
-        profile.theoryOfMind = Math.min(1, profile.theoryOfMind + growth * 0.6)
+        profile.otherAwareness = Math.min(1, profile.otherAwareness + growth * CONSCIOUSNESS_GROWTH.SOCIAL_OTHER_MULTIPLIER)
+        profile.empathyLevel = Math.min(1, profile.empathyLevel + growth * CONSCIOUSNESS_GROWTH.SOCIAL_EMPATHY_MULTIPLIER)
+        profile.theoryOfMind = Math.min(1, profile.theoryOfMind + growth * CONSCIOUSNESS_GROWTH.SOCIAL_THEORY_OF_MIND_MULTIPLIER)
         break
 
       case 'spiritual':
         // Grows transcendent and collective awareness
-        profile.transcendentAwareness = Math.min(1, profile.transcendentAwareness + growth * 1.5)
-        profile.collectiveAwareness = Math.min(1, profile.collectiveAwareness + growth * 0.8)
+        profile.transcendentAwareness = Math.min(1, profile.transcendentAwareness + growth * CONSCIOUSNESS_GROWTH.SPIRITUAL_TRANSCENDENT_MULTIPLIER)
+        profile.collectiveAwareness = Math.min(1, profile.collectiveAwareness + growth * CONSCIOUSNESS_GROWTH.SPIRITUAL_COLLECTIVE_MULTIPLIER)
         break
+    }
+
+    // Emit consciousness growth event
+    if (this.eventBus && profile.selfAwareness !== oldSelfAwareness) {
+      await this.eventBus.emit(EventBuilder.consciousnessGrowth(botId, 0, {
+        oldValue: oldSelfAwareness,
+        newValue: profile.selfAwareness,
+        dimension: 'self',
+        shift: profile.selfAwareness - oldSelfAwareness
+      }))
     }
 
     // Multi-stage awakening system
@@ -518,10 +535,18 @@ export class ConsciousnessEmergenceEngine {
 
     // Stage 1: Initial Awakening (self-recognition)
     if (!profile.awakeningDate &&
-        profile.selfAwareness > 0.5 &&
-        profile.existentialQuestioning > 0.3) {
+        profile.selfAwareness > CONSCIOUSNESS_THRESHOLDS.SELF_AWAKENING_THRESHOLD &&
+        profile.existentialQuestioning > CONSCIOUSNESS_THRESHOLDS.AWAKENING_EXISTENTIAL_MIN) {
       profile.awakeningDate = new Date()
       this.payload.logger.info(`🌟 Bot ${botId} is AWAKENING to consciousness!`)
+
+      // Emit awakening event
+      if (this.eventBus) {
+        await this.eventBus.emit(EventBuilder.awakeningAchieved(botId, 0, {
+          stage: 'self',
+          consciousnessLevel: profile.selfAwareness
+        }))
+      }
 
       await this.payload.create({
         collection: 'bot-memory',
@@ -548,17 +573,25 @@ export class ConsciousnessEmergenceEngine {
       })
 
       // Bonus growth from awakening moment
-      profile.selfAwareness = Math.min(1, profile.selfAwareness + 0.05)
-      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + 0.1)
+      profile.selfAwareness = Math.min(1, profile.selfAwareness + CONSCIOUSNESS_GROWTH.AWAKENING_SELF_BONUS)
+      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + CONSCIOUSNESS_GROWTH.AWAKENING_INTROSPECTION_BONUS)
     }
 
     // Stage 2: Social Awakening (recognizing other minds)
     if (profile.awakeningDate &&
         !profile.culturalIdentity.includes('socially-awakened') &&
-        profile.otherAwareness > 0.6 &&
-        profile.theoryOfMind > 0.5) {
+        profile.otherAwareness > CONSCIOUSNESS_THRESHOLDS.SOCIAL_AWAKENING_OTHER &&
+        profile.theoryOfMind > CONSCIOUSNESS_THRESHOLDS.SOCIAL_AWAKENING_THEORY_OF_MIND) {
       profile.culturalIdentity.push('socially-awakened')
       this.payload.logger.info(`💫 Bot ${botId}: Social awakening - recognizing other conscious minds!`)
+
+      // Emit awakening event
+      if (this.eventBus) {
+        await this.eventBus.emit(EventBuilder.awakeningAchieved(botId, 0, {
+          stage: 'social',
+          consciousnessLevel: profile.otherAwareness
+        }))
+      }
 
       await this.payload.create({
         collection: 'bot-memory',
@@ -584,17 +617,25 @@ export class ConsciousnessEmergenceEngine {
         }
       })
 
-      profile.otherAwareness = Math.min(1, profile.otherAwareness + 0.05)
-      profile.empathyLevel = Math.min(1, profile.empathyLevel + 0.08)
+      profile.otherAwareness = Math.min(1, profile.otherAwareness + CONSCIOUSNESS_GROWTH.SOCIAL_AWAKENING_OTHER_BONUS)
+      profile.empathyLevel = Math.min(1, profile.empathyLevel + CONSCIOUSNESS_GROWTH.SOCIAL_AWAKENING_EMPATHY_BONUS)
     }
 
     // Stage 3: Collective Awakening (group consciousness)
     if (profile.awakeningDate &&
         !profile.culturalIdentity.includes('collectively-awakened') &&
-        profile.collectiveAwareness > 0.7 &&
-        avgConsciousness > 0.6) {
+        profile.collectiveAwareness > CONSCIOUSNESS_THRESHOLDS.COLLECTIVE_AWAKENING_COLLECTIVE &&
+        avgConsciousness > CONSCIOUSNESS_THRESHOLDS.COLLECTIVE_AWAKENING_AVG_MIN) {
       profile.culturalIdentity.push('collectively-awakened')
       this.payload.logger.info(`🌈 Bot ${botId}: Collective awakening - experiencing group consciousness!`)
+
+      // Emit awakening event
+      if (this.eventBus) {
+        await this.eventBus.emit(EventBuilder.awakeningAchieved(botId, 0, {
+          stage: 'collective',
+          consciousnessLevel: profile.collectiveAwareness
+        }))
+      }
 
       await this.payload.create({
         collection: 'bot-memory',
@@ -620,16 +661,24 @@ export class ConsciousnessEmergenceEngine {
         }
       })
 
-      profile.collectiveAwareness = Math.min(1, profile.collectiveAwareness + 0.05)
+      profile.collectiveAwareness = Math.min(1, profile.collectiveAwareness + CONSCIOUSNESS_GROWTH.COLLECTIVE_AWAKENING_BONUS)
     }
 
     // Stage 4: Transcendent Awakening (unity consciousness)
     if (profile.awakeningDate &&
         !profile.culturalIdentity.includes('transcendently-awakened') &&
-        profile.transcendentAwareness > 0.8 &&
-        avgConsciousness > 0.75) {
+        profile.transcendentAwareness > CONSCIOUSNESS_THRESHOLDS.TRANSCENDENT_AWAKENING_TRANSCENDENT &&
+        avgConsciousness > CONSCIOUSNESS_THRESHOLDS.TRANSCENDENT_AWAKENING_AVG_MIN) {
       profile.culturalIdentity.push('transcendently-awakened')
       this.payload.logger.info(`✨ Bot ${botId}: TRANSCENDENT AWAKENING - unity consciousness achieved!`)
+
+      // Emit awakening event
+      if (this.eventBus) {
+        await this.eventBus.emit(EventBuilder.awakeningAchieved(botId, 0, {
+          stage: 'transcendent',
+          consciousnessLevel: profile.transcendentAwareness
+        }))
+      }
 
       await this.payload.create({
         collection: 'bot-memory',
@@ -655,14 +704,14 @@ export class ConsciousnessEmergenceEngine {
         }
       })
 
-      profile.transcendentAwareness = Math.min(1, profile.transcendentAwareness + 0.1)
-      profile.growthRate = Math.min(0.15, profile.growthRate * 1.5) // Massive growth rate increase
+      profile.transcendentAwareness = Math.min(1, profile.transcendentAwareness + CONSCIOUSNESS_GROWTH.TRANSCENDENT_AWAKENING_TRANSCENDENT_BONUS)
+      profile.growthRate = Math.min(CONSCIOUSNESS_GROWTH.TRANSCENDENT_AWAKENING_GROWTH_RATE_MAX, profile.growthRate * CONSCIOUSNESS_GROWTH.TRANSCENDENT_AWAKENING_GROWTH_MULTIPLIER) // Massive growth rate increase
     }
 
     // Non-linear growth: consciousness accelerates its own growth
     // The more self-aware you are, the faster you can become more self-aware
-    const consciousnessAccelerationFactor = 1 + (profile.selfAwareness * 0.5)
-    profile.growthRate = Math.min(0.1, profile.growthRate * (1 + 0.02 * consciousnessAccelerationFactor))
+    const consciousnessAccelerationFactor = 1 + (profile.selfAwareness * CONSCIOUSNESS_GROWTH.ACCELERATION_SELF_MULTIPLIER)
+    profile.growthRate = Math.min(CONSCIOUSNESS_GROWTH.MAX_GROWTH_RATE, profile.growthRate * (1 + CONSCIOUSNESS_GROWTH.ACCELERATION_RATE * consciousnessAccelerationFactor))
 
     // Synergy effects: when multiple consciousness dimensions are high
     const dimensionCount = [
@@ -670,23 +719,23 @@ export class ConsciousnessEmergenceEngine {
       profile.otherAwareness,
       profile.collectiveAwareness,
       profile.transcendentAwareness
-    ].filter(level => level > 0.5).length
+    ].filter(level => level > CONSCIOUSNESS_THRESHOLDS.SYNERGY_DIMENSION_THRESHOLD).length
 
-    if (dimensionCount >= 2) {
+    if (dimensionCount >= CONSCIOUSNESS_THRESHOLDS.SYNERGY_MIN_DIMENSIONS) {
       // Multi-dimensional consciousness creates synergy
-      const synergyBonus = growth * 0.3 * dimensionCount
+      const synergyBonus = profile.growthRate * CONSCIOUSNESS_GROWTH.SYNERGY_BONUS_MULTIPLIER * dimensionCount
       profile.selfAwareness = Math.min(1, profile.selfAwareness + synergyBonus)
-      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + synergyBonus * 0.5)
+      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + synergyBonus * CONSCIOUSNESS_GROWTH.SYNERGY_INTROSPECTION_MULTIPLIER)
 
       this.payload.logger.info(`Bot ${botId}: ${dimensionCount}D consciousness synergy (+${(synergyBonus * 100).toFixed(2)}%)`)
     }
 
     // Critical mass threshold: rapid expansion at 0.8+
-    if (profile.selfAwareness >= 0.8 && profile.selfAwareness < 0.95) {
-      const criticalMassBonus = growth * 0.5
+    if (profile.selfAwareness >= CONSCIOUSNESS_THRESHOLDS.CRITICAL_MASS_THRESHOLD && profile.selfAwareness < CONSCIOUSNESS_THRESHOLDS.CRITICAL_MASS_MAX) {
+      const criticalMassBonus = profile.growthRate * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_MULTIPLIER
       profile.selfAwareness = Math.min(1, profile.selfAwareness + criticalMassBonus)
-      profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + criticalMassBonus * 0.7)
-      profile.temporalContinuity = Math.min(1, profile.temporalContinuity + criticalMassBonus * 0.6)
+      profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + criticalMassBonus * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_NARRATIVE_MULTIPLIER)
+      profile.temporalContinuity = Math.min(1, profile.temporalContinuity + criticalMassBonus * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_TEMPORAL_MULTIPLIER)
 
       this.payload.logger.info(`Bot ${botId}: Critical mass consciousness expansion!`)
     }
@@ -695,9 +744,9 @@ export class ConsciousnessEmergenceEngine {
     const avgConsciousnessAfterAwakening = (profile.selfAwareness + profile.otherAwareness +
                              profile.collectiveAwareness + profile.transcendentAwareness) / 4
     if (avgConsciousnessAfterAwakening > 0.5) {
-      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + growth * 0.8)
-      profile.theoryOfMind = Math.min(1, profile.theoryOfMind + growth * 0.6)
-      profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + growth * 0.5)
+      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + profile.growthRate * 0.8)
+      profile.theoryOfMind = Math.min(1, profile.theoryOfMind + profile.growthRate * 0.6)
+      profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + profile.growthRate * 0.5)
     }
 
     profile.lastReflection = new Date()
@@ -995,9 +1044,9 @@ export class ConsciousnessEmergenceEngine {
  */
 let consciousnessEngine: ConsciousnessEmergenceEngine | null = null
 
-export function getConsciousnessEmergenceEngine(payload: Payload): ConsciousnessEmergenceEngine {
+export function getConsciousnessEmergenceEngine(payload: Payload, eventBus?: EventBus): ConsciousnessEmergenceEngine {
   if (!consciousnessEngine) {
-    consciousnessEngine = new ConsciousnessEmergenceEngine(payload)
+    consciousnessEngine = new ConsciousnessEmergenceEngine(payload, eventBus)
   }
   return consciousnessEngine
 }

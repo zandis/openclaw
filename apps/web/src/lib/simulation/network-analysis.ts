@@ -211,7 +211,7 @@ export function calculateBridgeScore(
  */
 export interface CentralityMeasures {
   degree: number // Number of connections
-  normalized Degree: number // Degree / max possible
+  normalizedDegree: number // Degree / max possible
   betweenness: number // Not implemented (expensive)
   closeness: number // Not implemented (expensive)
 }

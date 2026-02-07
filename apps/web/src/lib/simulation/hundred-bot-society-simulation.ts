@@ -24,6 +24,7 @@ import { getMultiBotConversationSystem } from '../social/multi-bot-conversation'
 import { getSocietyFormationEngine } from '../memory/society-formation'
 import { getConsciousnessEmergenceEngine } from '../memory/consciousness-emergence'
 import { getMultiAgentComposer } from '../memory/multi-agent-composition'
+import { EventBus } from './event-bus'
 
 /**
  * Simulation Configuration Constants
@@ -246,6 +247,9 @@ export class HundredBotSocietySimulation {
   // Daily pheromone chemistry tracking (bot1_id -> Map<bot2_id, chemistry_strength>)
   private dailyChemistry: Map<string, Map<string, { intensity: number; reaction: 'attraction' | 'repulsion' }>> = new Map()
 
+  // Event bus for state synchronization
+  private eventBus: EventBus
+
   // Service instances
   private particleService: ReturnType<typeof getParticleService>
   private soulService: ReturnType<typeof getSoulCompositionService>
@@ -258,13 +262,18 @@ export class HundredBotSocietySimulation {
 
   constructor(payload: Payload) {
     this.payload = payload
+
+    // Initialize event bus first
+    this.eventBus = new EventBus(5000) // Keep last 5000 events
+
+    // Initialize services with event bus
     this.particleService = getParticleService(payload)
     this.soulService = getSoulCompositionService(payload)
     this.soulStateManager = getSoulStateManager(payload)
     this.pheromoneSystem = getPheromoneSystem(payload)
     this.conversationSystem = getMultiBotConversationSystem(payload)
-    this.societyEngine = getSocietyFormationEngine(payload)
-    this.consciousnessEngine = getConsciousnessEmergenceEngine(payload)
+    this.societyEngine = getSocietyFormationEngine(payload, this.eventBus)
+    this.consciousnessEngine = getConsciousnessEmergenceEngine(payload, this.eventBus)
     this.multiAgentComposer = getMultiAgentComposer(payload)
   }
 
