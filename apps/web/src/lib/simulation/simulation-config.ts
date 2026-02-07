@@ -90,9 +90,14 @@ export const CONSCIOUSNESS_GROWTH = {
   ACCELERATION_SELF_MULTIPLIER: 0.5,
   ACCELERATION_RATE: 0.02,
 
+  // Sigmoid curve parameters (Iteration 6)
+  SIGMOID_SLOPE: 2.0, // Controls steepness of the curve
+  SIGMOID_MIDPOINT: 0.5, // Midpoint of sigmoid curve
+
   // Synergy
   SYNERGY_BONUS_MULTIPLIER: 0.3,
   SYNERGY_INTROSPECTION_MULTIPLIER: 0.5,
+  SYNERGY_CAP_MULTIPLIER: 1.0, // Cap total bonuses at 100% of base growth
 
   // Critical mass
   CRITICAL_MASS_MULTIPLIER: 0.5,

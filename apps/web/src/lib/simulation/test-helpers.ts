@@ -289,6 +289,58 @@ export function calculateExpectedConsciousness(
 }
 
 /**
+ * Validate awakening timeline (Iteration 6)
+ * Tests if given parameters will reach awakening threshold in target days
+ */
+export function validateAwakeningTimeline(
+  experienceRate: number,
+  avgInsightsPerDay: number,
+  personalityBonus: number,
+  targetDays: number,
+  awakeningThreshold: number = 0.5,
+  initialConsciousness: number = 0.05
+): boolean {
+  const expectedConsciousness = calculateExpectedConsciousness(
+    initialConsciousness,
+    avgInsightsPerDay,
+    experienceRate,
+    personalityBonus,
+    targetDays
+  )
+
+  return expectedConsciousness >= awakeningThreshold
+}
+
+/**
+ * Calculate consciousness with sigmoid growth (Iteration 6)
+ * More realistic growth curve that prevents explosion
+ */
+export function calculateConsciousnessWithSigmoid(
+  initialConsciousness: number,
+  insightsPerDay: number,
+  experienceRate: number,
+  personalityBonus: number,
+  days: number,
+  sigmoidSlope: number = 2.0,
+  sigmoidMidpoint: number = 0.5
+): number {
+  let consciousness = initialConsciousness
+  let growthRate = 0.01
+
+  for (let day = 0; day < days; day++) {
+    // Sigmoid acceleration instead of exponential
+    const acceleration = 1 / (1 + Math.exp(-sigmoidSlope * (consciousness - sigmoidMidpoint)))
+    const maxGrowthRate = 0.1
+    growthRate = maxGrowthRate * acceleration
+
+    const experienceGain = insightsPerDay * experienceRate * personalityBonus * growthRate
+    consciousness = Math.min(1.0, consciousness + experienceGain)
+  }
+
+  return consciousness
+}
+
+/**
  * Generate test event history
  */
 export function createTestEventHistory(count: number = 10): any[] {

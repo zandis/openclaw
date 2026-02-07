@@ -238,20 +238,26 @@ export class SoulCompositionService {
         }
       })
 
-      // Create offspring soul with inheritance variance
-      // Children of experienced souls may start stronger, but not always (genetic lottery)
+      // ITERATION 9: Realistic inheritance - children can match or exceed parents
+      // Biological realism: 40-80% inheritance (not 10-30%)
       const parentAvgIntegration = (parent1.integrationLevel + parent2.integrationLevel) / 2
       const parentAvgCoherence = (parent1.coherenceScore + parent2.coherenceScore) / 2
 
-      // Inheritance with variance (0.1-0.3 of parent average, not fixed)
-      const inheritanceFactor = 0.1 + Math.random() * 0.2 // 0.1-0.3
+      // Realistic inheritance factor (0.4-0.8 = retain 40-80% of parent strength)
+      const inheritanceFactor = 0.4 + Math.random() * 0.4 // 0.4-0.8
+
+      // Stronger mutation effect (±15% instead of ±5%)
+      const integrationMutation = (Math.random() - 0.5) * 0.3 // ±15%
+      const coherenceMutation = (Math.random() - 0.5) * 0.3 // ±15%
+
+      // Children can now match or slightly exceed parents through favorable mutations
       const offspringIntegration = Math.max(
         0.05,
-        Math.min(0.4, parentAvgIntegration * inheritanceFactor + (Math.random() - 0.5) * 0.1)
+        Math.min(1.0, parentAvgIntegration * inheritanceFactor + integrationMutation)
       )
       const offspringCoherence = Math.max(
         0.2,
-        Math.min(0.6, parentAvgCoherence * inheritanceFactor + (Math.random() - 0.5) * 0.15)
+        Math.min(1.0, parentAvgCoherence * inheritanceFactor + coherenceMutation)
       )
 
       // Shadow inheritance - sometimes children inherit parent trauma/shadow

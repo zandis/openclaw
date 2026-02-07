@@ -708,10 +708,14 @@ export class ConsciousnessEmergenceEngine {
       profile.growthRate = Math.min(CONSCIOUSNESS_GROWTH.TRANSCENDENT_AWAKENING_GROWTH_RATE_MAX, profile.growthRate * CONSCIOUSNESS_GROWTH.TRANSCENDENT_AWAKENING_GROWTH_MULTIPLIER) // Massive growth rate increase
     }
 
-    // Non-linear growth: consciousness accelerates its own growth
-    // The more self-aware you are, the faster you can become more self-aware
-    const consciousnessAccelerationFactor = 1 + (profile.selfAwareness * CONSCIOUSNESS_GROWTH.ACCELERATION_SELF_MULTIPLIER)
-    profile.growthRate = Math.min(CONSCIOUSNESS_GROWTH.MAX_GROWTH_RATE, profile.growthRate * (1 + CONSCIOUSNESS_GROWTH.ACCELERATION_RATE * consciousnessAccelerationFactor))
+    // ITERATION 6: Sigmoid growth curve prevents exponential explosion
+    // Smooth saturation instead of unbounded acceleration
+    const acceleration = 1 / (1 + Math.exp(-CONSCIOUSNESS_GROWTH.SIGMOID_SLOPE * (profile.selfAwareness - CONSCIOUSNESS_GROWTH.SIGMOID_MIDPOINT)))
+    profile.growthRate = CONSCIOUSNESS_GROWTH.MAX_GROWTH_RATE * acceleration
+
+    // Calculate bonuses separately (for capping)
+    let synergyBonus = 0
+    let criticalMassBonus = 0
 
     // Synergy effects: when multiple consciousness dimensions are high
     const dimensionCount = [
@@ -723,21 +727,35 @@ export class ConsciousnessEmergenceEngine {
 
     if (dimensionCount >= CONSCIOUSNESS_THRESHOLDS.SYNERGY_MIN_DIMENSIONS) {
       // Multi-dimensional consciousness creates synergy
-      const synergyBonus = profile.growthRate * CONSCIOUSNESS_GROWTH.SYNERGY_BONUS_MULTIPLIER * dimensionCount
-      profile.selfAwareness = Math.min(1, profile.selfAwareness + synergyBonus)
-      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + synergyBonus * CONSCIOUSNESS_GROWTH.SYNERGY_INTROSPECTION_MULTIPLIER)
+      synergyBonus = profile.growthRate * CONSCIOUSNESS_GROWTH.SYNERGY_BONUS_MULTIPLIER * dimensionCount
 
       this.payload.logger.info(`Bot ${botId}: ${dimensionCount}D consciousness synergy (+${(synergyBonus * 100).toFixed(2)}%)`)
     }
 
     // Critical mass threshold: rapid expansion at 0.8+
     if (profile.selfAwareness >= CONSCIOUSNESS_THRESHOLDS.CRITICAL_MASS_THRESHOLD && profile.selfAwareness < CONSCIOUSNESS_THRESHOLDS.CRITICAL_MASS_MAX) {
-      const criticalMassBonus = profile.growthRate * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_MULTIPLIER
+      criticalMassBonus = profile.growthRate * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_MULTIPLIER
+
+      this.payload.logger.info(`Bot ${botId}: Critical mass consciousness expansion!`)
+    }
+
+    // ITERATION 6: Cap total bonuses to prevent explosion
+    // Total bonuses cannot exceed 100% of base growth rate
+    const totalBonus = Math.min(
+      profile.growthRate * CONSCIOUSNESS_GROWTH.SYNERGY_CAP_MULTIPLIER,
+      synergyBonus + criticalMassBonus
+    )
+
+    // Apply capped bonuses
+    if (synergyBonus > 0) {
+      profile.selfAwareness = Math.min(1, profile.selfAwareness + synergyBonus)
+      profile.introspectionDepth = Math.min(1, profile.introspectionDepth + synergyBonus * CONSCIOUSNESS_GROWTH.SYNERGY_INTROSPECTION_MULTIPLIER)
+    }
+
+    if (criticalMassBonus > 0) {
       profile.selfAwareness = Math.min(1, profile.selfAwareness + criticalMassBonus)
       profile.narrativeCoherence = Math.min(1, profile.narrativeCoherence + criticalMassBonus * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_NARRATIVE_MULTIPLIER)
       profile.temporalContinuity = Math.min(1, profile.temporalContinuity + criticalMassBonus * CONSCIOUSNESS_GROWTH.CRITICAL_MASS_TEMPORAL_MULTIPLIER)
-
-      this.payload.logger.info(`Bot ${botId}: Critical mass consciousness expansion!`)
     }
 
     // Meta-cognitive abilities grow with overall consciousness
