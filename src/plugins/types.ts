@@ -298,7 +298,11 @@ export type PluginHookName =
   | "session_start"
   | "session_end"
   | "gateway_start"
-  | "gateway_stop";
+  | "gateway_stop"
+  | "before_heartbeat"
+  | "after_heartbeat"
+  | "vitality_update"
+  | "before_session_reset";
 
 // Agent context shared across agent hooks
 export type PluginHookAgentContext = {
@@ -460,6 +464,44 @@ export type PluginHookGatewayStopEvent = {
   reason?: string;
 };
 
+// Heartbeat hooks (vitality loop integration)
+export type PluginHookBeforeHeartbeatEvent = {
+  agentId: string;
+  reason?: string;
+};
+
+export type PluginHookBeforeHeartbeatResult = {
+  /** Extra context to inject into the heartbeat system prompt. */
+  extraContext?: string;
+  /** Skip heartbeat entirely. */
+  skip?: boolean;
+};
+
+export type PluginHookAfterHeartbeatEvent = {
+  agentId: string;
+  status: "ran" | "skipped";
+  reason?: string;
+  durationMs?: number;
+};
+
+// Vitality update hook
+export type PluginHookVitalityUpdateEvent = {
+  agentId: string;
+  changeKind: string;
+  details?: Record<string, unknown>;
+};
+
+// Session reset hook
+export type PluginHookBeforeSessionResetEvent = {
+  sessionKey: string;
+  reason: "daily" | "idle" | "manual";
+};
+
+export type PluginHookBeforeSessionResetResult = {
+  /** Summary to persist in vitality state before the reset. */
+  summary?: string;
+};
+
 // Hook handler types mapped by hook name
 export type PluginHookHandlerMap = {
   before_agent_start: (
@@ -515,6 +557,25 @@ export type PluginHookHandlerMap = {
     event: PluginHookGatewayStopEvent,
     ctx: PluginHookGatewayContext,
   ) => Promise<void> | void;
+  before_heartbeat: (
+    event: PluginHookBeforeHeartbeatEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<PluginHookBeforeHeartbeatResult | void> | PluginHookBeforeHeartbeatResult | void;
+  after_heartbeat: (
+    event: PluginHookAfterHeartbeatEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<void> | void;
+  vitality_update: (
+    event: PluginHookVitalityUpdateEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<void> | void;
+  before_session_reset: (
+    event: PluginHookBeforeSessionResetEvent,
+    ctx: PluginHookAgentContext,
+  ) =>
+    | Promise<PluginHookBeforeSessionResetResult | void>
+    | PluginHookBeforeSessionResetResult
+    | void;
 };
 
 export type PluginHookRegistration<K extends PluginHookName = PluginHookName> = {

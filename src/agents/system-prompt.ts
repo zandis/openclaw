@@ -214,6 +214,8 @@ export function buildAgentSystemPrompt(params: {
     channel: string;
   };
   memoryCitationsMode?: MemoryCitationsMode;
+  /** Pre-built vitality context block (from vitality/prompt-context.ts). */
+  vitalityContext?: string | null;
 }) {
   const coreToolSummaries: Record<string, string> = {
     read: "Read file contents",
@@ -500,6 +502,8 @@ export function buildAgentSystemPrompt(params: {
     ...buildTimeSection({
       userTimezone,
     }),
+    // Vitality context (consciousness, soul state, goals, environment)
+    params.vitalityContext ? params.vitalityContext : "",
     "## Workspace Files (injected)",
     "These user-editable files are loaded by OpenClaw and included below in Project Context.",
     "",
