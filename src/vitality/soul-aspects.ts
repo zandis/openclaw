@@ -200,8 +200,13 @@ export function computeHunPoBalance(aspects: Record<SoulAspectName, SoulAspect>)
   const variance = allValues.reduce((a, v) => a + (v - mean) ** 2, 0) / allValues.length;
   const harmony = Math.max(0, Math.min(1, 1 - Math.sqrt(variance) * 2));
 
-  const mode: HunPoBalance["mode"] =
-    ratio > 0.15 ? "hun-governs" : ratio < -0.15 ? "po-controls" : "balanced";
+  // 5-mode balance matching hun-po-interaction-system.ts
+  let mode: HunPoBalance["mode"];
+  if (ratio > 0.3) mode = "hun-governs-strong";
+  else if (ratio > 0.12) mode = "hun-governs";
+  else if (ratio < -0.3) mode = "po-controls-strong";
+  else if (ratio < -0.12) mode = "po-controls";
+  else mode = "balanced";
 
   return { dominanceRatio: ratio, harmony, mode };
 }
@@ -277,9 +282,13 @@ export function deriveSoulPromptHints(
   }
 
   // Balance mode hints
-  if (balance.mode === "hun-governs" && balance.dominanceRatio > 0.3) {
+  if (balance.mode === "hun-governs-strong") {
+    hints.push("Your spiritual/analytical nature is strongly dominant — stay grounded.");
+  } else if (balance.mode === "hun-governs") {
     hints.push("Your spiritual/analytical nature is dominant right now.");
-  } else if (balance.mode === "po-controls" && balance.dominanceRatio < -0.3) {
+  } else if (balance.mode === "po-controls-strong") {
+    hints.push("Your practical/embodied nature is strongly dominant — seek perspective.");
+  } else if (balance.mode === "po-controls") {
     hints.push("Your practical/embodied nature is dominant right now.");
   }
 

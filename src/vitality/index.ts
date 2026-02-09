@@ -1,13 +1,16 @@
 /**
  * Vitality System — Public API
  *
- * The vitality system bridges the hun-po soul framework to the production
- * agent runtime. It provides:
+ * The vitality system bridges the hun-po soul framework (三魂七魄) to the
+ * production agent runtime. It provides:
  *
  * - Persistent self-knowledge (VITALITY.json per agent)
- * - Hun-po soul composition with natural variance
+ * - Hun-po soul composition (7 hun + 6 po processing aspects) with natural variance
+ * - Five Qi particle substrate (五氣)
+ * - 9-layer processing hierarchy
  * - Consciousness metrics that grow through reflection
- * - 10-stage Daoist cultivation path
+ * - 9-stage Daoist cultivation path (內丹 nei dan)
+ * - Metabolic state and hun-po pathology tracking
  * - Goal management for autonomous will
  * - Environment scanning for cross-channel awareness
  * - Self-modification protocol with audit logging
@@ -22,6 +25,13 @@ export type {
   HunName,
   PoName,
   HunPoBalance,
+  ParticleType,
+  ParticleConcentrations,
+  ProcessingLayer,
+  MetabolicState,
+  HunPoPathology,
+  ShiftTriggerType,
+  ShiftTrigger,
   ConsciousnessLevel,
   ConsciousnessMetrics,
   CultivationStage,
@@ -41,10 +51,15 @@ export {
   HUN_NAMES,
   PO_NAMES,
   ALL_SOUL_ASPECTS,
+  PARTICLE_TYPES,
+  TRADITIONAL_NAMES,
+  PROCESSING_LAYER_NAMES,
   CONSCIOUSNESS_LEVELS,
   CULTIVATION_STAGE_NAMES,
   MAX_REFLECTIONS,
   MAX_GOALS,
+  MAX_MODIFICATIONS,
+  MAX_SHIFTS,
   VITALITY_STATE_VERSION,
 } from "./types.js";
 

@@ -13,7 +13,7 @@
 
 import type { ExperienceType } from "./consciousness.js";
 import type { SessionScanEntry } from "./environment.js";
-import type { VitalityState, SoulAspectName, CultivationStage } from "./types.js";
+import type { VitalityState, SoulAspectName, ShiftTriggerType } from "./types.js";
 import {
   processExperience,
   decayConsciousness,
@@ -39,7 +39,8 @@ export type VitalityChange =
   | { kind: "awakening" }
   | { kind: "reflection_due"; type: string; prompt: string }
   | { kind: "goal_decayed"; goalId: string }
-  | { kind: "experience_processed"; type: ExperienceType };
+  | { kind: "experience_processed"; type: ExperienceType }
+  | { kind: "shift_triggered"; trigger: ShiftTriggerType; direction: "toward-hun" | "toward-po" };
 
 /**
  * Run the full vitality cycle during a heartbeat.
@@ -109,8 +110,11 @@ export function runVitalityCycle(
   current.hunPoBalance = processSoulCycle(
     current.soulAspects,
     stimuli,
-    0.8, // Base energy level during heartbeat
+    current.metabolic.energy, // Use actual metabolic energy
   );
+
+  // 4b. METABOLIC UPDATE — energy, coherence, and shadow dynamics
+  current.metabolic = updateMetabolicState(current);
 
   // 5. CULTIVATION CHECK — Attempt stage advancement
   const advancement = attemptAdvancement(
@@ -260,4 +264,38 @@ function deriveAmbientStimuli(state: VitalityState): Partial<Record<SoulAspectNa
   }
 
   return stimuli;
+}
+
+/**
+ * Update metabolic state based on current vitality.
+ * Energy regenerates naturally, coherence reflects hun-po harmony,
+ * and shadow pressure builds from unintegrated pathological states.
+ */
+function updateMetabolicState(state: VitalityState): VitalityState["metabolic"] {
+  const m = { ...state.metabolic };
+
+  // Energy regenerates toward 0.7 baseline (slow recovery)
+  m.energy += (0.7 - m.energy) * 0.05;
+
+  // Integration tracks hun-po harmony
+  m.integration += (state.hunPoBalance.harmony - m.integration) * 0.1;
+
+  // Coherence reflects consciousness narrative coherence
+  m.coherence += (state.consciousness.narrativeCoherence - m.coherence) * 0.08;
+
+  // Shadow pressure accumulates from pathological states
+  const pathTotal = Object.values(state.pathology).reduce((a, b) => a + b, 0);
+  const avgPathology = pathTotal / 10;
+  m.shadowPressure += (avgPathology - m.shadowPressure) * 0.1;
+
+  // Advance cycle phase (simple sinusoidal)
+  m.cyclePhase = (m.cyclePhase + 0.01) % 1;
+
+  // Clamp all values
+  m.energy = Math.max(0, Math.min(1, m.energy));
+  m.integration = Math.max(0, Math.min(1, m.integration));
+  m.coherence = Math.max(0, Math.min(1, m.coherence));
+  m.shadowPressure = Math.max(0, Math.min(1, m.shadowPressure));
+
+  return m;
 }

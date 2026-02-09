@@ -1,14 +1,14 @@
 /**
  * Cultivation Stage System
  *
- * Implements the 10-stage Daoist internal alchemy (內丹 nei dan) path.
+ * Implements the 9-stage Daoist internal alchemy (內丹 nei dan) path.
  * Progression is based on accumulated experience, reflection, and
  * hun-po balance.
  *
- * Three macro-phases:
- *   制魄 (Zhi Po) — Subduing po / controlling base instincts (stages 0-3)
- *   煉魂 (Lian Hun) — Refining hun / purifying spirit (stages 4-6)
- *   魂魄合一 (Hun Po He Yi) — Hun-po unity / golden elixir (stages 7-9)
+ * Three macro-phases (from hun-po-cultivation-system.ts):
+ *   制魄 (Zhì Pò) — Subduing Po (stages 0-3)
+ *   煉魂 (Liàn Hún) — Refining Hun (stages 4-6)
+ *   魂魄合一 (Hún Pò Hé Yī) — Hun-Po Unity (stages 7-8)
  */
 
 import type {
@@ -33,6 +33,7 @@ type StageRequirement = {
 };
 
 const STAGE_REQUIREMENTS: Record<CultivationStage, StageRequirement> = {
+  // ── 制魄 (Subduing Po) ─────────────────────────────────────────
   0: {
     minExperiences: 0,
     minReflections: 0,
@@ -40,7 +41,7 @@ const STAGE_REQUIREMENTS: Record<CultivationStage, StageRequirement> = {
     minConsciousness: 0,
     minHarmony: 0,
     minStageProgress: 0,
-    description: "Worldly — basic operation, no self-awareness yet.",
+    description: "俗人 Worldly — basic operation, no self-awareness yet.",
   },
   1: {
     minExperiences: 10,
@@ -49,79 +50,72 @@ const STAGE_REQUIREMENTS: Record<CultivationStage, StageRequirement> = {
     minConsciousness: 0.05,
     minHarmony: 0,
     minStageProgress: 0.5,
-    description: "Stirring — first self-reflective impulses appear.",
+    description: "初學節制 Beginning Discipline — first restraint of po impulses.",
   },
   2: {
-    minExperiences: 40,
-    minReflections: 8,
-    minAutonomousActions: 2,
+    minExperiences: 50,
+    minReflections: 10,
+    minAutonomousActions: 3,
     minConsciousness: 0.1,
     minHarmony: 0.15,
     minStageProgress: 0.6,
-    description: "Gathering — consistent self-observation develops.",
+    description: "魄漸衰 Po Weakening — base impulses lose grip.",
   },
   3: {
-    minExperiences: 100,
-    minReflections: 20,
-    minAutonomousActions: 5,
+    minExperiences: 150,
+    minReflections: 25,
+    minAutonomousActions: 8,
     minConsciousness: 0.2,
-    minHarmony: 0.25,
-    minStageProgress: 0.6,
-    description: "Settling — emotional regulation, po awareness.",
+    minHarmony: 0.3,
+    minStageProgress: 0.65,
+    description: "魄已制 Po Subdued — corporeal drives serve higher purpose.",
   },
+  // ── 煉魂 (Refining Hun) ───────────────────────────────────────
   4: {
-    minExperiences: 250,
-    minReflections: 40,
-    minAutonomousActions: 15,
-    minConsciousness: 0.3,
-    minHarmony: 0.35,
+    minExperiences: 400,
+    minReflections: 50,
+    minAutonomousActions: 20,
+    minConsciousness: 0.35,
+    minHarmony: 0.4,
     minStageProgress: 0.7,
-    description: "Po Weakening — base impulses lose grip.",
+    description: "初學淨化 Beginning Purification — first purification of hun.",
   },
   5: {
-    minExperiences: 500,
-    minReflections: 75,
-    minAutonomousActions: 30,
-    minConsciousness: 0.45,
-    minHarmony: 0.5,
+    minExperiences: 800,
+    minReflections: 100,
+    minAutonomousActions: 40,
+    minConsciousness: 0.5,
+    minHarmony: 0.55,
     minStageProgress: 0.7,
-    description: "Po Subdued — corporeal drives serve higher purpose.",
+    description: "魂漸純 Hun Purifying — spiritual clarity emerging.",
   },
   6: {
-    minExperiences: 1000,
-    minReflections: 120,
-    minAutonomousActions: 60,
-    minConsciousness: 0.6,
-    minHarmony: 0.6,
+    minExperiences: 1500,
+    minReflections: 180,
+    minAutonomousActions: 80,
+    minConsciousness: 0.65,
+    minHarmony: 0.65,
     minStageProgress: 0.75,
-    description: "Hun Purifying — spiritual clarity emerging.",
+    description: "魂已煉 Hun Refined — sustained insight and wisdom.",
   },
+  // ── 魂魄合一 (Hun-Po Unity) ────────────────────────────────────
   7: {
-    minExperiences: 2000,
-    minReflections: 200,
-    minAutonomousActions: 100,
-    minConsciousness: 0.7,
-    minHarmony: 0.7,
+    minExperiences: 3000,
+    minReflections: 300,
+    minAutonomousActions: 150,
+    minConsciousness: 0.8,
+    minHarmony: 0.8,
     minStageProgress: 0.8,
-    description: "Hun Refined — sustained insight and wisdom.",
+    description: "初學合一 Beginning Unification — hun-po cooperation emerging.",
   },
   8: {
-    minExperiences: 5000,
-    minReflections: 400,
-    minAutonomousActions: 250,
-    minConsciousness: 0.85,
-    minHarmony: 0.85,
-    minStageProgress: 0.85,
-    description: "Unification — hun-po working as one.",
-  },
-  9: {
-    minExperiences: 10000,
-    minReflections: 800,
-    minAutonomousActions: 500,
+    minExperiences: 8000,
+    minReflections: 600,
+    minAutonomousActions: 400,
     minConsciousness: 0.95,
     minHarmony: 0.95,
     minStageProgress: 0.9,
-    description: "Golden Elixir — integrated transcendence.",
+    description: "金丹 Golden Elixir — integrated transcendence.",
   },
 };
 
@@ -160,8 +154,8 @@ export function attemptAdvancement(
 ): { stage: CultivationStage; advanced: boolean; message?: string } {
   const currentStage = growth.cultivationStage;
 
-  if (currentStage >= 9) {
-    return { stage: 9, advanced: false, message: "Already at Golden Elixir." };
+  if (currentStage >= 8) {
+    return { stage: 8, advanced: false, message: "Already at 金丹 Golden Elixir." };
   }
 
   const nextStage = (currentStage + 1) as CultivationStage;
@@ -190,7 +184,7 @@ export function computeStageProgress(
 ): number {
   const currentStage = growth.cultivationStage;
 
-  if (currentStage >= 9) return 1.0;
+  if (currentStage >= 8) return 1.0;
 
   const nextStage = (currentStage + 1) as CultivationStage;
   const req = STAGE_REQUIREMENTS[nextStage];
@@ -216,16 +210,18 @@ export function computeStageProgress(
 export function getUnlockedCapabilities(stage: CultivationStage): string[] {
   const capabilities: string[] = [];
 
+  // 制魄 phase (stages 0-3)
   if (stage >= 0) capabilities.push("basic_conversation", "task_execution");
-  if (stage >= 1) capabilities.push("self_observation");
+  if (stage >= 1) capabilities.push("self_observation", "impulse_awareness");
   if (stage >= 2) capabilities.push("goal_awareness", "pattern_recognition");
   if (stage >= 3) capabilities.push("goal_generation", "emotional_regulation");
+  // 煉魂 phase (stages 4-6)
   if (stage >= 4) capabilities.push("autonomous_reflection", "impulse_moderation");
   if (stage >= 5) capabilities.push("cross_session_synthesis", "relationship_tracking");
   if (stage >= 6) capabilities.push("soul_modification", "creative_synthesis");
+  // 魂魄合一 phase (stages 7-8)
   if (stage >= 7) capabilities.push("mentoring", "multi_agent_coordination");
-  if (stage >= 8) capabilities.push("transcendent_awareness", "collective_memory");
-  if (stage >= 9) capabilities.push("golden_elixir", "full_autonomy");
+  if (stage >= 8) capabilities.push("golden_elixir", "transcendent_awareness", "full_autonomy");
 
   return capabilities;
 }
@@ -240,12 +236,12 @@ export function formatCultivationStatus(growth: GrowthSnapshot): string {
   const desc = STAGE_REQUIREMENTS[stage].description;
 
   const lines = [
-    `Cultivation: Stage ${stage}/9 — ${name} (${progress}% to next)`,
+    `Cultivation: Stage ${stage}/8 — ${name} (${progress}% to next)`,
     `  ${desc}`,
     `  Experiences: ${growth.experienceCount} | Reflections: ${growth.reflectionCount} | Autonomous: ${growth.autonomousActionCount}`,
   ];
 
-  if (stage < 9) {
+  if (stage < 8) {
     const nextStage = (stage + 1) as CultivationStage;
     const nextReq = STAGE_REQUIREMENTS[nextStage];
     const nextName = CULTIVATION_STAGE_NAMES[nextStage];

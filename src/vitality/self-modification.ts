@@ -56,29 +56,35 @@ export function canModify(
     return { allowed: true };
   }
 
-  // Strengths/weaknesses awareness from stage 2+
+  // Strengths/weaknesses awareness from stage 2+ (魄漸衰 Po Weakening)
   if (field.startsWith("selfModel.strengths") || field.startsWith("selfModel.weaknesses")) {
     if (stage < 2) {
-      return { allowed: false, reason: "Self-awareness requires cultivation stage 2 (Gathering)." };
-    }
-    return { allowed: true };
-  }
-
-  // SOUL.md modification requires stage 6+
-  if (field.startsWith("SOUL.md")) {
-    if (stage < 6) {
       return {
         allowed: false,
-        reason: "SOUL.md modification requires cultivation stage 6 (Hun Purifying).",
+        reason: "Self-awareness requires cultivation stage 2 (魄漸衰 Po Weakening).",
       };
     }
     return { allowed: true };
   }
 
-  // Goal generation from stage 3+
+  // SOUL.md modification requires stage 6+ (魂已煉 Hun Refined)
+  if (field.startsWith("SOUL.md")) {
+    if (stage < 6) {
+      return {
+        allowed: false,
+        reason: "SOUL.md modification requires cultivation stage 6 (魂已煉 Hun Refined).",
+      };
+    }
+    return { allowed: true };
+  }
+
+  // Goal generation from stage 3+ (魄已制 Po Subdued)
   if (field.startsWith("goals")) {
     if (stage < 3) {
-      return { allowed: false, reason: "Goal generation requires cultivation stage 3 (Settling)." };
+      return {
+        allowed: false,
+        reason: "Goal generation requires cultivation stage 3 (魄已制 Po Subdued).",
+      };
     }
     return { allowed: true };
   }

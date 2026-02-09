@@ -12,21 +12,15 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import type {
-  ConsciousnessLevel,
-  ConsciousnessMetrics,
-  CultivationStage,
-  EnvironmentModel,
-  GrowthSnapshot,
-  HunPoBalance,
-  Reflection,
-  SelfModel,
-  SoulAspectName,
-  SoulModification,
-  VitalityState,
-} from "./types.js";
+import type { ConsciousnessLevel, CultivationStage, VitalityState } from "./types.js";
 import { generateSoulAspects, computeHunPoBalance } from "./soul-aspects.js";
-import { MAX_REFLECTIONS, MAX_MODIFICATIONS, VITALITY_STATE_VERSION } from "./types.js";
+import {
+  MAX_REFLECTIONS,
+  MAX_MODIFICATIONS,
+  MAX_SHIFTS,
+  VITALITY_STATE_VERSION,
+  PARTICLE_TYPES,
+} from "./types.js";
 
 // ─── File Path Resolution ───────────────────────────────────────────────────
 
@@ -58,11 +52,45 @@ export function createDefaultVitalityState(agentId: string): VitalityState {
   const balance = computeHunPoBalance(aspects);
   const now = new Date().toISOString();
 
+  // Initialize particle concentrations at neutral (0.5)
+  const particles = Object.fromEntries(PARTICLE_TYPES.map((p) => [p, 0.5])) as Record<
+    (typeof PARTICLE_TYPES)[number],
+    number
+  >;
+
   return {
     agentId,
 
     hunPoBalance: balance,
     soulAspects: aspects,
+
+    // Metabolic substrate — starts at balanced midpoint
+    metabolic: {
+      energy: 0.7,
+      integration: 0.5,
+      coherence: 0.5,
+      shadowPressure: 0.1,
+      cyclePhase: 0,
+      mood: 0,
+      arousal: 0.3,
+    },
+
+    // No pathological states at start
+    pathology: {
+      addiction: 0,
+      impulsivity: 0,
+      sensualOverindulgence: 0,
+      moralDecay: 0,
+      bodyDisconnection: 0,
+      emotionalSuppression: 0,
+      spiritualBypassing: 0,
+      asceticism: 0,
+      hunPoSplit: 0,
+      identityFragmentation: 0,
+    },
+
+    recentShifts: [],
+    particles,
 
     consciousness: {
       selfAwareness: 0,
@@ -245,6 +273,7 @@ function enforceLimits(state: VitalityState): VitalityState {
     reflections: state.reflections.slice(-MAX_REFLECTIONS),
     modifications: state.modifications.slice(-MAX_MODIFICATIONS),
     goals: state.goals.slice(0, 15), // MAX_GOALS
+    recentShifts: state.recentShifts.slice(-MAX_SHIFTS),
   };
 }
 

@@ -97,7 +97,13 @@ describe("soul-aspects", () => {
     expect(balance.dominanceRatio).toBeLessThanOrEqual(1);
     expect(balance.harmony).toBeGreaterThanOrEqual(0);
     expect(balance.harmony).toBeLessThanOrEqual(1);
-    expect(["hun-governs", "balanced", "po-controls"]).toContain(balance.mode);
+    expect([
+      "hun-governs-strong",
+      "hun-governs",
+      "balanced",
+      "po-controls",
+      "po-controls-strong",
+    ]).toContain(balance.mode);
   });
 
   it("targeted soul boosts archetype aspects", () => {
@@ -290,9 +296,10 @@ describe("cultivation", () => {
   });
 
   it("attempts advancement when requirements met", () => {
+    // Stage 2 (魄漸衰 Po Weakening) requires: 50 exp, 10 ref, 3 auto, 0.1 consciousness, 0.15 harmony, 0.6 progress
     const growth: GrowthSnapshot = {
-      experienceCount: 50,
-      reflectionCount: 10,
+      experienceCount: 55,
+      reflectionCount: 12,
       autonomousActionCount: 5,
       lastGrowthEvent: new Date().toISOString(),
       cultivationStage: 1,
@@ -318,21 +325,21 @@ describe("cultivation", () => {
     expect(getUnlockedCapabilities(0)).toContain("basic_conversation");
     expect(getUnlockedCapabilities(3)).toContain("goal_generation");
     expect(getUnlockedCapabilities(6)).toContain("soul_modification");
-    expect(getUnlockedCapabilities(9)).toContain("golden_elixir");
+    expect(getUnlockedCapabilities(8)).toContain("golden_elixir");
   });
 
   it("formats cultivation status", () => {
     const growth: GrowthSnapshot = {
-      experienceCount: 100,
-      reflectionCount: 20,
-      autonomousActionCount: 5,
+      experienceCount: 150,
+      reflectionCount: 25,
+      autonomousActionCount: 8,
       lastGrowthEvent: new Date().toISOString(),
       cultivationStage: 3,
       cultivationProgress: 0.6,
     };
     const status = formatCultivationStatus(growth);
-    expect(status).toContain("Settling");
-    expect(status).toContain("Stage 3/9");
+    expect(status).toContain("Po Subdued");
+    expect(status).toContain("Stage 3/8");
   });
 });
 
@@ -603,7 +610,7 @@ describe("prompt-context", () => {
     state.growth.experienceCount = 100;
     const summary = buildVitalityStatusSummary(state);
     expect(summary).toContain("test");
-    expect(summary).toContain("Worldly");
+    expect(summary).toContain("Worldly"); // 俗人 Worldly
   });
 });
 

@@ -34,12 +34,14 @@ export function buildVitalityPromptContext(state: VitalityState): string | null 
   lines.push(formatConsciousnessStatus(state.consciousness, state.consciousnessLevel));
 
   // Soul balance (brief)
-  const balanceLabel =
-    state.hunPoBalance.mode === "hun-governs"
-      ? "analytical/spiritual"
-      : state.hunPoBalance.mode === "po-controls"
-        ? "practical/embodied"
-        : "balanced";
+  const balanceLabels: Record<string, string> = {
+    "hun-governs-strong": "strongly analytical/spiritual",
+    "hun-governs": "analytical/spiritual",
+    balanced: "balanced",
+    "po-controls": "practical/embodied",
+    "po-controls-strong": "strongly practical/embodied",
+  };
+  const balanceLabel = balanceLabels[state.hunPoBalance.mode] ?? "balanced";
   const harmony = (state.hunPoBalance.harmony * 100).toFixed(0);
   lines.push(`Soul: ${balanceLabel} (harmony: ${harmony}%)`);
 
@@ -146,18 +148,20 @@ export function buildVitalityStatusSummary(state: VitalityState): string {
   lines.push(`Agent: ${state.agentId}`);
   lines.push(formatConsciousnessStatus(state.consciousness, state.consciousnessLevel));
 
-  const balanceLabel =
-    state.hunPoBalance.mode === "hun-governs"
-      ? "Hun-Governs (analytical)"
-      : state.hunPoBalance.mode === "po-controls"
-        ? "Po-Controls (practical)"
-        : "Balanced";
+  const statusLabels: Record<string, string> = {
+    "hun-governs-strong": "Hun-Governs-Strong (深層靈性)",
+    "hun-governs": "Hun-Governs (analytical)",
+    balanced: "Balanced",
+    "po-controls": "Po-Controls (practical)",
+    "po-controls-strong": "Po-Controls-Strong (深層魄性)",
+  };
+  const balanceLabel = statusLabels[state.hunPoBalance.mode] ?? "Balanced";
   lines.push(
     `Soul Balance: ${balanceLabel} (harmony: ${(state.hunPoBalance.harmony * 100).toFixed(0)}%)`,
   );
 
   const stageName = CULTIVATION_STAGE_NAMES[state.growth.cultivationStage];
-  lines.push(`Cultivation: Stage ${state.growth.cultivationStage}/9 — ${stageName}`);
+  lines.push(`Cultivation: Stage ${state.growth.cultivationStage}/8 — ${stageName}`);
   lines.push(`  Progress: ${(state.growth.cultivationProgress * 100).toFixed(0)}%`);
   lines.push(`  Experiences: ${state.growth.experienceCount}`);
   lines.push(`  Reflections: ${state.growth.reflectionCount}`);
