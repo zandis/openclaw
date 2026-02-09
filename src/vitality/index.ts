@@ -138,6 +138,18 @@ export type { SessionScanEntry } from "./environment.js";
 // Self-modification
 export { recordModification, canModify, formatModifications } from "./self-modification.js";
 
+// Dynamics (shift triggers, pathology, particles, metabolic response)
+export {
+  detectShiftTriggers,
+  applyShiftTriggers,
+  derivePathology,
+  aggregatePathology,
+  updateParticles,
+  computeMetabolicResponse,
+  runDynamicsPass,
+} from "./dynamics.js";
+export type { ExperienceContext } from "./dynamics.js";
+
 // Vitality loop
 export { runVitalityCycle, processAgentTurn } from "./vitality-loop.js";
 export type { VitalityCycleResult, VitalityChange } from "./vitality-loop.js";

@@ -25,6 +25,14 @@ import {
   getUnlockedCapabilities,
   formatCultivationStatus,
 } from "./cultivation.js";
+import {
+  detectShiftTriggers,
+  applyShiftTriggers,
+  derivePathology,
+  aggregatePathology,
+  updateParticles,
+  computeMetabolicResponse,
+} from "./dynamics.js";
 import { scanEnvironment, formatEnvironmentContext } from "./environment.js";
 import {
   createGoal,
@@ -58,7 +66,7 @@ import {
   saveVitalityState,
   hasVitalityState,
 } from "./state.js";
-import { HUN_NAMES, PO_NAMES, ALL_SOUL_ASPECTS } from "./types.js";
+import { HUN_NAMES, PO_NAMES, ALL_SOUL_ASPECTS, PARTICLE_TYPES } from "./types.js";
 import { runVitalityCycle, processAgentTurn } from "./vitality-loop.js";
 
 // ─── Soul Aspects ───────────────────────────────────────────────────────────
@@ -581,6 +589,193 @@ describe("vitality-loop", () => {
     expect(updated.environment.recentActivity.length).toBe(1);
     expect(updated.environment.recentActivity[0].peer).toBe("alice");
     expect(updated.environment.activeChannels).toContain("whatsapp");
+  });
+
+  it("processes agent turn with shift triggers from text", () => {
+    const state = createDefaultVitalityState("test");
+    const updated = processAgentTurn(state, {
+      experienceType: "conversation",
+      text: "This is a stress-inducing emergency deadline panic",
+      outcome: "failure",
+    });
+
+    expect(updated.growth.experienceCount).toBe(1);
+    // Stress text should produce shift triggers
+    expect(updated.recentShifts.length).toBeGreaterThan(0);
+    // Metabolic should reflect failure outcome
+    expect(updated.metabolic.mood).toBeLessThan(0);
+  });
+
+  it("runs vitality cycle with shift triggers", () => {
+    const state = createDefaultVitalityState("test");
+    const result = runVitalityCycle(state, {
+      experienceType: "conversation",
+      experienceDepth: 0.5,
+      experienceText: "I had a breakthrough insight and a profound revelation about the code",
+    });
+
+    const shiftChanges = result.changes.filter((c) => c.kind === "shift_triggered");
+    expect(shiftChanges.length).toBeGreaterThan(0);
+  });
+
+  it("updates pathology and particles during cycle", () => {
+    const state = createDefaultVitalityState("test");
+    // Create strong po dominance
+    for (const name of HUN_NAMES) {
+      state.soulAspects[name].current = 0.2;
+    }
+    for (const name of PO_NAMES) {
+      state.soulAspects[name].current = 0.8;
+    }
+    state.hunPoBalance.dominanceRatio = -0.5;
+    state.hunPoBalance.mode = "po-controls-strong";
+
+    const result = runVitalityCycle(state, {
+      experienceType: "conversation",
+      experienceDepth: 0.5,
+    });
+
+    // Pathology should begin drifting due to po dominance
+    const pathTotal = Object.values(result.state.pathology).reduce((a, b) => a + b, 0);
+    expect(pathTotal).toBeGreaterThan(0);
+  });
+});
+
+// ─── Dynamics ─────────────────────────────────────────────────────────────
+
+describe("dynamics", () => {
+  it("detects shift triggers from text", () => {
+    const balance: HunPoBalance = { dominanceRatio: 0, harmony: 0.5, mode: "balanced" };
+    const triggers = detectShiftTriggers("This is stressful and urgent!", balance);
+
+    expect(triggers.length).toBeGreaterThan(0);
+    expect(triggers[0].type).toBe("stress");
+    expect(triggers[0].direction).toBe("toward-po");
+  });
+
+  it("detects meditation triggers toward hun", () => {
+    const balance: HunPoBalance = { dominanceRatio: 0, harmony: 0.5, mode: "balanced" };
+    const triggers = detectShiftTriggers("Let me reflect and contemplate this mindfully", balance);
+
+    expect(triggers.length).toBeGreaterThan(0);
+    expect(triggers[0].type).toBe("meditation");
+    expect(triggers[0].direction).toBe("toward-hun");
+  });
+
+  it("detects multiple trigger types", () => {
+    const balance: HunPoBalance = { dominanceRatio: 0, harmony: 0.5, mode: "balanced" };
+    const triggers = detectShiftTriggers(
+      "Under stress I had a revelation that led to a breakthrough",
+      balance,
+    );
+
+    const types = triggers.map((t) => t.type);
+    expect(types).toContain("stress");
+    expect(types).toContain("revelation");
+  });
+
+  it("applies shift triggers to balance", () => {
+    const metabolic = createDefaultVitalityState("test").metabolic;
+    const hunShifts = [
+      {
+        type: "meditation" as const,
+        intensity: 0.8,
+        direction: "toward-hun" as const,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+    const poShifts = [
+      {
+        type: "stress" as const,
+        intensity: 0.8,
+        direction: "toward-po" as const,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    expect(applyShiftTriggers(hunShifts, metabolic)).toBeGreaterThan(0);
+    expect(applyShiftTriggers(poShifts, metabolic)).toBeLessThan(0);
+  });
+
+  it("derives pathology from po dominance", () => {
+    const balance: HunPoBalance = {
+      dominanceRatio: -0.5,
+      harmony: 0.3,
+      mode: "po-controls-strong",
+    };
+    const metabolic = createDefaultVitalityState("test").metabolic;
+    const zeroed = createDefaultVitalityState("test").pathology;
+
+    const pathology = derivePathology(balance, metabolic, zeroed);
+    expect(pathology.addiction).toBeGreaterThan(0);
+    expect(pathology.impulsivity).toBeGreaterThan(0);
+    // Hun-dominant pathologies should remain near 0
+    expect(pathology.spiritualBypassing).toBeLessThan(0.01);
+  });
+
+  it("derives pathology from hun dominance", () => {
+    const balance: HunPoBalance = { dominanceRatio: 0.5, harmony: 0.3, mode: "hun-governs-strong" };
+    const metabolic = createDefaultVitalityState("test").metabolic;
+    const zeroed = createDefaultVitalityState("test").pathology;
+
+    const pathology = derivePathology(balance, metabolic, zeroed);
+    expect(pathology.bodyDisconnection).toBeGreaterThan(0);
+    expect(pathology.spiritualBypassing).toBeGreaterThan(0);
+    // Po-dominant pathologies should remain near 0
+    expect(pathology.addiction).toBeLessThan(0.01);
+  });
+
+  it("aggregates pathology score", () => {
+    const zeroed = createDefaultVitalityState("test").pathology;
+    expect(aggregatePathology(zeroed)).toBe(0);
+
+    const half = { ...zeroed, addiction: 0.5, impulsivity: 0.5 };
+    expect(aggregatePathology(half)).toBe(0.1); // 1.0 / 10
+  });
+
+  it("updates particle concentrations", () => {
+    const state = createDefaultVitalityState("test");
+    // Boost wisdom and awareness strongly
+    state.soulAspects.wisdomHun.current = 0.9;
+    state.soulAspects.awarenessHun.current = 0.9;
+
+    const updated = updateParticles(state.particles, state.soulAspects, state.metabolic);
+
+    // Conscious particle (drawn by wisdom + awareness) should be slightly depleted
+    expect(updated.conscious).toBeLessThan(state.particles.conscious);
+  });
+
+  it("regenerates particles toward baseline", () => {
+    const state = createDefaultVitalityState("test");
+    // Deplete vital particle
+    state.particles.vital = 0.1;
+
+    const updated = updateParticles(state.particles, state.soulAspects, state.metabolic);
+    expect(updated.vital).toBeGreaterThan(0.1);
+  });
+
+  it("computes metabolic response to success", () => {
+    const metabolic = createDefaultVitalityState("test").metabolic;
+    const result = computeMetabolicResponse(metabolic, {
+      type: "conversation",
+      depth: 0.8,
+      outcome: "success",
+    });
+
+    expect(result.mood).toBeGreaterThan(metabolic.mood);
+    expect(result.energy).toBeLessThan(metabolic.energy); // costs energy
+    expect(result.arousal).toBeGreaterThan(metabolic.arousal);
+  });
+
+  it("computes metabolic response to failure", () => {
+    const metabolic = createDefaultVitalityState("test").metabolic;
+    const result = computeMetabolicResponse(metabolic, {
+      type: "conversation",
+      depth: 0.8,
+      outcome: "failure",
+    });
+
+    expect(result.mood).toBeLessThan(metabolic.mood);
   });
 });
 

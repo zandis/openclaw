@@ -18,6 +18,12 @@ import { buildTtsSystemPromptHint } from "../../../tts/tts.js";
 import { resolveUserPath } from "../../../utils.js";
 import { normalizeMessageChannel } from "../../../utils/message-channel.js";
 import { isReasoningTagProvider } from "../../../utils/provider-utils.js";
+import {
+  loadVitalityState,
+  saveVitalityState,
+  buildVitalityPromptContext,
+  processAgentTurn,
+} from "../../../vitality/index.js";
 import { resolveOpenClawAgentDir } from "../../agent-paths.js";
 import { resolveSessionAgentIds } from "../../agent-scope.js";
 import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
@@ -345,6 +351,16 @@ export async function runEmbeddedAttempt(
     });
     const ttsHint = params.config ? buildTtsSystemPromptHint(params.config) : undefined;
 
+    // Load vitality state for consciousness-aware system prompt
+    const vitalityAgentId = sessionAgentId ?? defaultAgentId ?? "main";
+    let vitalityContext: string | null = null;
+    try {
+      const vitalityState = loadVitalityState(agentDir, vitalityAgentId);
+      vitalityContext = buildVitalityPromptContext(vitalityState);
+    } catch (err) {
+      log.debug(`vitality: failed to load state for prompt context: ${String(err)}`);
+    }
+
     const appendPrompt = buildEmbeddedSystemPrompt({
       workspaceDir: effectiveWorkspace,
       defaultThinkLevel: params.thinkLevel,
@@ -371,6 +387,7 @@ export async function runEmbeddedAttempt(
       userTimeFormat,
       contextFiles,
       memoryCitationsMode: params.config?.memory?.citations,
+      vitalityContext,
     });
     const systemPromptReport = buildSystemPromptReport({
       source: "run",
@@ -858,6 +875,26 @@ export async function runEmbeddedAttempt(
             .catch((err) => {
               log.warn(`agent_end hook failed: ${err}`);
             });
+        }
+
+        // Process vitality turn (fire-and-forget)
+        // This updates consciousness, metabolic state, pathology, and particles
+        try {
+          const turnState = loadVitalityState(agentDir, vitalityAgentId);
+          const updatedState = processAgentTurn(turnState, {
+            experienceType: promptError ? "tool_use" : "conversation",
+            depth: Math.min(1, (Date.now() - promptStartedAt) / 60_000), // depth ~ duration
+            channel: params.messageProvider ?? undefined,
+            peer: params.senderId ?? undefined,
+            topic: params.prompt?.slice(0, 100),
+            text: params.prompt,
+            outcome: promptError ? "failure" : "success",
+          });
+          saveVitalityState(agentDir, updatedState).catch((err) => {
+            log.debug(`vitality: failed to save state after agent turn: ${String(err)}`);
+          });
+        } catch (err) {
+          log.debug(`vitality: agent turn processing failed: ${String(err)}`);
         }
       } finally {
         clearTimeout(abortTimer);

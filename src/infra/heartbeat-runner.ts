@@ -5,6 +5,7 @@ import type { ChannelHeartbeatDeps } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentDefaultsConfig } from "../config/types.agent-defaults.js";
 import type { OutboundSendDeps } from "./outbound/deliver.js";
+import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 import {
   resolveAgentConfig,
   resolveAgentWorkspaceDir,
@@ -35,10 +36,12 @@ import {
   updateSessionStore,
 } from "../config/sessions.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { getQueueSize } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
 import { normalizeAgentId, toAgentStoreSessionKey } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
+import { loadVitalityState, saveVitalityState, runVitalityCycle } from "../vitality/index.js";
 import { formatErrorMessage } from "./errors.js";
 import { emitHeartbeatEvent, resolveIndicatorType } from "./heartbeat-events.js";
 import { resolveHeartbeatVisibility } from "./heartbeat-visibility.js";
@@ -617,6 +620,66 @@ export async function runHeartbeatOnce(opts: {
     return true;
   };
 
+  // ── Vitality cycle: run before the heartbeat reply ──────────────────────
+  const hookRunner = getGlobalHookRunner();
+  let heartbeatSkippedByHook = false;
+  try {
+    // Fire before_heartbeat hook
+    if (hookRunner?.hasHooks("before_heartbeat")) {
+      const hookResult = await hookRunner.runBeforeHeartbeat(
+        { agentId, reason: opts.reason },
+        { agentId, workspaceDir },
+      );
+      if (hookResult?.skip) {
+        heartbeatSkippedByHook = true;
+      }
+    }
+
+    // Run vitality cycle (even if heartbeat is skipped — the soul still evolves)
+    const agentDir = resolveOpenClawAgentDir();
+    try {
+      const vitalityState = loadVitalityState(agentDir, agentId);
+      const lastInteraction = vitalityState.lastUpdated
+        ? (Date.now() - new Date(vitalityState.lastUpdated).getTime()) / (1000 * 60 * 60)
+        : 0;
+      const cycleResult = runVitalityCycle(vitalityState, {
+        experienceType: "idle_reflection",
+        experienceDepth: 0.3,
+        hoursSinceLastInteraction: lastInteraction,
+      });
+      await saveVitalityState(agentDir, cycleResult.state);
+
+      // Fire vitality_update hook for significant changes
+      if (hookRunner?.hasHooks("vitality_update")) {
+        for (const change of cycleResult.changes) {
+          hookRunner
+            .runVitalityUpdate(
+              { agentId, changeKind: change.kind, details: change as Record<string, unknown> },
+              { agentId, workspaceDir },
+            )
+            .catch((err) => log.debug(`vitality_update hook failed: ${String(err)}`));
+        }
+      }
+    } catch (err) {
+      log.debug(`vitality: heartbeat cycle failed: ${String(err)}`);
+    }
+  } catch (err) {
+    log.debug(`vitality: before_heartbeat hook failed: ${String(err)}`);
+  }
+
+  if (heartbeatSkippedByHook) {
+    // Fire after_heartbeat with "skipped" status
+    if (hookRunner?.hasHooks("after_heartbeat")) {
+      hookRunner
+        .runAfterHeartbeat(
+          { agentId, status: "skipped", reason: "hook", durationMs: Date.now() - startedAt },
+          { agentId, workspaceDir },
+        )
+        .catch(() => {});
+    }
+    return { status: "skipped", reason: "hook" };
+  }
+
   try {
     const replyResult = await getReplyFromConfig(ctx, { isHeartbeat: true }, cfg);
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
@@ -824,6 +887,16 @@ export async function runHeartbeatOnce(opts: {
       accountId: delivery.accountId,
       indicatorType: visibility.useIndicator ? resolveIndicatorType("sent") : undefined,
     });
+
+    // Fire after_heartbeat hook
+    if (hookRunner?.hasHooks("after_heartbeat")) {
+      hookRunner
+        .runAfterHeartbeat(
+          { agentId, status: "ran", reason: opts.reason, durationMs: Date.now() - startedAt },
+          { agentId, workspaceDir },
+        )
+        .catch(() => {});
+    }
     return { status: "ran", durationMs: Date.now() - startedAt };
   } catch (err) {
     const reason = formatErrorMessage(err);
@@ -836,6 +909,16 @@ export async function runHeartbeatOnce(opts: {
       indicatorType: visibility.useIndicator ? resolveIndicatorType("failed") : undefined,
     });
     log.error(`heartbeat failed: ${reason}`, { error: reason });
+
+    // Fire after_heartbeat hook even on failure
+    if (hookRunner?.hasHooks("after_heartbeat")) {
+      hookRunner
+        .runAfterHeartbeat(
+          { agentId, status: "ran", reason, durationMs: Date.now() - startedAt },
+          { agentId, workspaceDir },
+        )
+        .catch(() => {});
+    }
     return { status: "failed", reason };
   }
 }

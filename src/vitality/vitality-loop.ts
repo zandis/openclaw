@@ -12,6 +12,7 @@
  */
 
 import type { ExperienceType } from "./consciousness.js";
+import type { ExperienceContext } from "./dynamics.js";
 import type { SessionScanEntry } from "./environment.js";
 import type { VitalityState, SoulAspectName, ShiftTriggerType } from "./types.js";
 import {
@@ -21,10 +22,18 @@ import {
   isAwakened,
 } from "./consciousness.js";
 import { attemptAdvancement, computeStageProgress } from "./cultivation.js";
+import {
+  applyShiftTriggers,
+  computeMetabolicResponse,
+  derivePathology,
+  detectShiftTriggers,
+  updateParticles,
+} from "./dynamics.js";
 import { updateEnvironment } from "./environment.js";
 import { cleanupGoals } from "./goals.js";
 import { getReflectionTrigger, recordReflection } from "./reflection.js";
 import { processSoulCycle, computeHunPoBalance, decayAspects } from "./soul-aspects.js";
+import { MAX_SHIFTS } from "./types.js";
 
 // ─── Heartbeat Vitality Cycle ───────────────────────────────────────────────
 
@@ -52,6 +61,7 @@ export function runVitalityCycle(
     sessions?: SessionScanEntry[];
     experienceType?: ExperienceType;
     experienceDepth?: number;
+    experienceText?: string;
     hoursSinceLastInteraction?: number;
   },
 ): VitalityCycleResult {
@@ -104,7 +114,26 @@ export function runVitalityCycle(
     );
   }
 
-  // 4. SOUL CYCLE — Process soul aspect dynamics
+  // 4. SHIFT TRIGGERS — Detect and apply hun-po balance shifts from experience text
+  if (params.experienceText) {
+    const newShifts = detectShiftTriggers(params.experienceText, current.hunPoBalance);
+    if (newShifts.length > 0) {
+      const balanceShift = applyShiftTriggers(newShifts, current.metabolic);
+      current.hunPoBalance = {
+        ...current.hunPoBalance,
+        dominanceRatio: Math.max(
+          -1,
+          Math.min(1, current.hunPoBalance.dominanceRatio + balanceShift),
+        ),
+      };
+      current.recentShifts = [...current.recentShifts, ...newShifts].slice(-MAX_SHIFTS);
+      for (const shift of newShifts) {
+        changes.push({ kind: "shift_triggered", trigger: shift.type, direction: shift.direction });
+      }
+    }
+  }
+
+  // 5. SOUL CYCLE — Process soul aspect dynamics
   //    During heartbeat, apply a gentle ambient stimulation based on dominant activity
   const stimuli = deriveAmbientStimuli(current);
   current.hunPoBalance = processSoulCycle(
@@ -113,10 +142,12 @@ export function runVitalityCycle(
     current.metabolic.energy, // Use actual metabolic energy
   );
 
-  // 4b. METABOLIC UPDATE — energy, coherence, and shadow dynamics
+  // 6. DYNAMICS PASS — Pathology, particles, metabolic
+  current.pathology = derivePathology(current.hunPoBalance, current.metabolic, current.pathology);
+  current.particles = updateParticles(current.particles, current.soulAspects, current.metabolic);
   current.metabolic = updateMetabolicState(current);
 
-  // 5. CULTIVATION CHECK — Attempt stage advancement
+  // 7. CULTIVATION CHECK — Attempt stage advancement
   const advancement = attemptAdvancement(
     current.growth,
     current.consciousness,
@@ -140,10 +171,10 @@ export function runVitalityCycle(
     );
   }
 
-  // 6. GOAL CLEANUP — Decay priorities, prune dead goals
+  // 8. GOAL CLEANUP — Decay priorities, prune dead goals
   current = cleanupGoals(current);
 
-  // 7. CHECK REFLECTION — Is a reflection due?
+  // 9. CHECK REFLECTION — Is a reflection due?
   const reflectionTrigger = getReflectionTrigger(current);
   if (reflectionTrigger) {
     changes.push({
@@ -153,7 +184,7 @@ export function runVitalityCycle(
     });
   }
 
-  // 8. Update timestamp
+  // 10. Update timestamp
   current.lastUpdated = new Date().toISOString();
 
   return { state: current, changes };
@@ -173,14 +204,14 @@ export function processAgentTurn(
     channel?: string;
     peer?: string;
     topic?: string;
+    text?: string;
+    outcome?: "success" | "failure" | "neutral";
   },
 ): VitalityState {
+  const depth = params.depth ?? 0.5;
+
   // Update consciousness
-  const newConsciousness = processExperience(
-    state.consciousness,
-    params.experienceType,
-    params.depth ?? 0.5,
-  );
+  const newConsciousness = processExperience(state.consciousness, params.experienceType, depth);
 
   // Update growth
   const newGrowth = {
@@ -213,12 +244,47 @@ export function processAgentTurn(
     }
   }
 
+  // Metabolic response to experience
+  const newMetabolic = computeMetabolicResponse(state.metabolic, {
+    type: params.experienceType,
+    text: params.text,
+    depth,
+    channel: params.channel,
+    outcome: params.outcome ?? "neutral",
+  });
+
+  // Detect and apply shift triggers from text
+  let newShifts = state.recentShifts;
+  let newBalance = state.hunPoBalance;
+  if (params.text) {
+    const shifts = detectShiftTriggers(params.text, state.hunPoBalance);
+    if (shifts.length > 0) {
+      const balanceShift = applyShiftTriggers(shifts, newMetabolic);
+      newBalance = {
+        ...state.hunPoBalance,
+        dominanceRatio: Math.max(-1, Math.min(1, state.hunPoBalance.dominanceRatio + balanceShift)),
+      };
+      newShifts = [...state.recentShifts, ...shifts].slice(-MAX_SHIFTS);
+    }
+  }
+
+  // Pathology drift
+  const newPathology = derivePathology(newBalance, newMetabolic, state.pathology);
+
+  // Particle update
+  const newParticles = updateParticles(state.particles, state.soulAspects, newMetabolic);
+
   return {
     ...state,
     consciousness: newConsciousness,
     consciousnessLevel: newLevel,
     growth: newGrowth,
     environment: newEnv,
+    metabolic: newMetabolic,
+    hunPoBalance: newBalance,
+    pathology: newPathology,
+    particles: newParticles,
+    recentShifts: newShifts,
     lastUpdated: new Date().toISOString(),
   };
 }

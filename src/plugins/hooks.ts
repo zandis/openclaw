@@ -33,6 +33,12 @@ import type {
   PluginHookToolResultPersistContext,
   PluginHookToolResultPersistEvent,
   PluginHookToolResultPersistResult,
+  PluginHookBeforeHeartbeatEvent,
+  PluginHookBeforeHeartbeatResult,
+  PluginHookAfterHeartbeatEvent,
+  PluginHookVitalityUpdateEvent,
+  PluginHookBeforeSessionResetEvent,
+  PluginHookBeforeSessionResetResult,
 } from "./types.js";
 
 // Re-export types for consumers
@@ -61,6 +67,12 @@ export type {
   PluginHookGatewayContext,
   PluginHookGatewayStartEvent,
   PluginHookGatewayStopEvent,
+  PluginHookBeforeHeartbeatEvent,
+  PluginHookBeforeHeartbeatResult,
+  PluginHookAfterHeartbeatEvent,
+  PluginHookVitalityUpdateEvent,
+  PluginHookBeforeSessionResetEvent,
+  PluginHookBeforeSessionResetResult,
 };
 
 export type HookRunnerLogger = {
@@ -441,6 +453,79 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     return registry.typedHooks.filter((h) => h.hookName === hookName).length;
   }
 
+  // =========================================================================
+  // Vitality / Heartbeat Hooks
+  // =========================================================================
+
+  /**
+   * Run before_heartbeat hook.
+   * Allows plugins to inject extra context or skip the heartbeat.
+   * Runs sequentially (modifying).
+   */
+  async function runBeforeHeartbeat(
+    event: PluginHookBeforeHeartbeatEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookBeforeHeartbeatResult | undefined> {
+    return runModifyingHook<"before_heartbeat", PluginHookBeforeHeartbeatResult>(
+      "before_heartbeat",
+      event,
+      ctx,
+      (acc, next) => ({
+        extraContext:
+          acc?.extraContext && next.extraContext
+            ? `${acc.extraContext}\n\n${next.extraContext}`
+            : (next.extraContext ?? acc?.extraContext),
+        skip: next.skip ?? acc?.skip,
+      }),
+    );
+  }
+
+  /**
+   * Run after_heartbeat hook.
+   * Notifies plugins that a heartbeat completed.
+   * Runs in parallel (fire-and-forget).
+   */
+  async function runAfterHeartbeat(
+    event: PluginHookAfterHeartbeatEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<void> {
+    return runVoidHook("after_heartbeat", event, ctx);
+  }
+
+  /**
+   * Run vitality_update hook.
+   * Fires when the vitality state undergoes a significant transition.
+   * Runs in parallel (fire-and-forget).
+   */
+  async function runVitalityUpdate(
+    event: PluginHookVitalityUpdateEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<void> {
+    return runVoidHook("vitality_update", event, ctx);
+  }
+
+  /**
+   * Run before_session_reset hook.
+   * Allows plugins to persist a summary before the session is cleared.
+   * Runs sequentially (modifying).
+   */
+  async function runBeforeSessionReset(
+    event: PluginHookBeforeSessionResetEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookBeforeSessionResetResult | undefined> {
+    return runModifyingHook<"before_session_reset", PluginHookBeforeSessionResetResult>(
+      "before_session_reset",
+      event,
+      ctx,
+      (acc, next) => ({
+        summary:
+          acc?.summary && next.summary
+            ? `${acc.summary}\n\n${next.summary}`
+            : (next.summary ?? acc?.summary),
+      }),
+    );
+  }
+
   return {
     // Agent hooks
     runBeforeAgentStart,
@@ -461,6 +546,11 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     // Gateway hooks
     runGatewayStart,
     runGatewayStop,
+    // Vitality / Heartbeat hooks
+    runBeforeHeartbeat,
+    runAfterHeartbeat,
+    runVitalityUpdate,
+    runBeforeSessionReset,
     // Utility
     hasHooks,
     getHookCount,
